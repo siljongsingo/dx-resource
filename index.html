@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DX Resource - 리소스 관리 시스템</title>
+    <!-- Tailwind CSS Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Libraries (안정적인 버전 고정) -->
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.344.0"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; -webkit-font-smoothing: antialiased; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
+        input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+        
+        /* 로딩 애니메이션 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2563eb;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 text-sm">
+    <div id="root">
+        <!-- 초기 로딩 화면 -->
+        <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
+            <div class="loader"></div>
+            <p style="margin-top: 20px; font-weight: bold; color: #4b5563;">시스템을 준비 중입니다...</p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK를 전역으로 노출하기 위한 설정 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+        // 환경변수 안전하게 읽기 (실행 시점에 주입됨)
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        } catch(e) {
+            console.error("Firebase config parsing error", e);
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'resource-manager-dx-center';
+
+        if (firebaseConfig.apiKey) {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            window.fb = { auth, db, appId, signInAnonymously, signInWithCustomToken, onAuthStateChanged, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy };
+        } else {
+            window.fb = null;
+        }
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { 
+            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+            PieChart, Pie, Cell 
+        } = window.Recharts;
+
+        const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [fbReady, setFbReady] = useState(false);
+            const [currentPage, setCurrentPage] = useState('report');
+            const [adminTab, setAdminTab] = useState('employees');
+            const [isAdminAuth, setIsAdminAuth] = useState(false);
+            const [adminPassword, setAdminPassword] = useState('');
+            
+            const [employees, setEmployees] = useState([]);
+            const [projects, setProjects] = useState([]);
+            const [ranks, setRanks] = useState([]);
+            const [teams, setTeams] = useState([]);
+            const [resourceEntries, setResourceEntries] = useState([]);
+            
+            const [selectedTeamFilter, setSelectedTeamFilter] = useState('전체');
+            const [tempInputs, setTempInputs] = useState({});
+            const [showOverloadModal, setShowOverloadModal] = useState(null);
+            const [showUnitWarning, setShowUnitWarning] = useState(false);
+
+            const [editingId, setEditingId] = useState(null);
+            const [editForm, setEditForm] = useState({ name: '', rank: '', team: '' });
+            const [editingMasterId, setEditingMasterId] = useState(null);
+            const [editMasterValue, setEditMasterValue] = useState('');
+
+            // Firebase 대기 로직
+            useEffect(() => {
+                const checkFB = setInterval(async () => {
+                    if (window.fb !== undefined) {
+                        clearInterval(checkFB);
+                        if (window.fb === null) {
+                            setLoading(false);
+                            return;
+                        }
+                        
+                        setFbReady(true);
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
+                            } else {
+                                await window.fb.signInAnonymously(window.fb.auth);
+                            }
+                            window.fb.onAuthStateChanged(window.fb.auth, (u) => {
+                                setUser(u);
+                                setLoading(false);
+                            });
+                        } catch (err) {
+                            setLoading(false);
+                        }
+                    }
+                }, 100);
+                return () => clearInterval(checkFB);
+            }, []);
+
+            // 실시간 데이터 구독
+            useEffect(() => {
+                if (!user || !window.fb) return;
+                const getColRef = (name) => window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', name);
+                
+                const unsubs = [
+                    window.fb.onSnapshot(getColRef('employees'), s => setEmployees(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(getColRef('projects'), s => setProjects(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(getColRef('ranks'), s => setRanks(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(getColRef('teams'), s => setTeams(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(getColRef('resourceEntries'), s => setResourceEntries(s.docs.map(d => ({ id: d.id, ...d.data() }))))
+                ];
+                return () => unsubs.forEach(fn => fn());
+            }, [user]);
+
+            useEffect(() => {
+                if (!loading && window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [loading, currentPage, adminTab, employees, editingId, isAdminAuth]);
+
+            // 유틸리티
+            const isWeekend = (dateStr) => {
+                const day = new Date(dateStr).getDay();
+                return day === 0 || day === 6;
+            };
+            const getNextFriday = (dateStr) => {
+                const date = new Date(dateStr);
+                const day = date.getDay();
+                const diff = day <= 5 ? 5 - day : 5 + (7 - day);
+                date.setDate(date.getDate() + diff);
+                return date.toISOString().split('T')[0];
+            };
+            const currentWeek = useMemo(() => {
+                const now = new Date();
+                return `${now.getFullYear()}-W${Math.ceil(now.getDate() / 7)}`;
+            }, []);
+
+            // 저장 처리
+            const handleSaveResources = async () => {
+                if (!window.fb) return;
+                const now = new Date().toISOString();
+                const promises = [];
+                Object.keys(tempInputs).forEach(id => {
+                    tempInputs[id].forEach(row => {
+                        if (row.rate > 0) {
+                            promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { 
+                                ...row, empId: id, timestamp: now, week: currentWeek 
+                            }));
+                        }
+                    });
+                });
+                await Promise.all(promises);
+                setTempInputs({});
+                alert("성공적으로 저장되었습니다.");
+            };
+
+            // 보고서 데이터
+            const reportData = useMemo(() => {
+                const weekEntries = resourceEntries.filter(re => re.week === currentWeek);
+                const totalRate = weekEntries.reduce((s, r) => s + r.rate, 0);
+                return projects.map(p => {
+                    const pSum = weekEntries.filter(re => re.projectId === p.name).reduce((s, r) => s + r.rate, 0);
+                    return { name: p.name, value: pSum, percent: totalRate > 0 ? Math.round((pSum / totalRate) * 100) : 0 };
+                }).filter(p => p.value > 0);
+            }, [resourceEntries, projects, currentWeek]);
+
+            const employeeStatus = useMemo(() => {
+                return employees.map(emp => {
+                    const entries = resourceEntries.filter(re => re.empId === emp.id && re.week === currentWeek);
+                    return { ...emp, totalRate: entries.reduce((s, r) => s + r.rate, 0), projects: entries.map(e => ({ name: e.projectId, rate: e.rate, desc: e.desc })) };
+                });
+            }, [employees, resourceEntries, currentWeek]);
+
+            if (loading) {
+                return (
+                    <div className="h-screen flex flex-col items-center justify-center bg-white">
+                        <div className="loader"></div>
+                        <p className="mt-5 font-bold text-gray-500">데이터를 불러오는 중입니다...</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen pb-20 font-bold">
+                    <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg">D</div>
+                            <span className="font-black text-xl tracking-tighter text-gray-800">DX Resource</span>
+                        </div>
+                        <div className="flex gap-1 bg-gray-100 p-1.5 rounded-2xl">
+                            {['report', 'input', 'admin'].map(p => (
+                                <button key={p} onClick={() => setCurrentPage(p)} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${currentPage === p ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                                    {p === 'report' ? '보고서' : p === 'input' ? '리소스 입력' : '관리자'}
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+
+                    <main className="p-4 md:p-8 max-w-7xl mx-auto space-y-10">
+                        {/* 팝업 공지 및 알림 */}
+                        {showOverloadModal && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+                                <div className="bg-white rounded-[32px] p-10 max-w-sm w-full shadow-2xl text-center">
+                                    <div className="text-red-500 mb-6 flex justify-center font-bold text-6xl">!</div>
+                                    <h3 className="text-2xl font-black mb-3">투입률 초과 경고</h3>
+                                    <p className="text-gray-600 mb-8 font-bold leading-relaxed"><span className="text-red-600">{showOverloadModal}</span>님의 합산 투입률이 100%를 초과했습니다.</p>
+                                    <button onClick={() => setShowOverloadModal(null)} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black text-lg">확인했습니다</button>
+                                </div>
+                            </div>
+                        )}
+                        {showUnitWarning && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+                                <div className="bg-white rounded-[32px] p-10 max-w-sm w-full shadow-2xl text-center">
+                                    <div className="text-blue-500 mb-6 flex justify-center font-bold text-6xl">i</div>
+                                    <h3 className="text-2xl font-black mb-3 text-gray-800">입력 단위 안내</h3>
+                                    <p className="text-gray-600 mb-8 leading-relaxed">투입률은 <span className="text-blue-600 font-black">5% 또는 10% 단위</span>로 입력을 부탁드립니다.</p>
+                                    <button onClick={() => setShowUnitWarning(false)} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg">확인했습니다</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {currentPage === 'report' && (
+                            <div className="space-y-8">
+                                <div className="flex justify-between items-end flex-wrap gap-4">
+                                    <h2 className="text-3xl font-black text-gray-800 tracking-tight">리소스 분석 리포트</h2>
+                                    <div className="px-5 py-2 bg-white border border-gray-200 rounded-2xl text-sm font-black text-gray-500 shadow-sm flex items-center gap-2">금주: {currentWeek}</div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    <div className="lg:col-span-1 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
+                                        <h3 className="font-black text-lg mb-8 flex items-center gap-2 text-gray-700">프로젝트 참여 비중</h3>
+                                        <div className="h-[300px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={reportData} innerRadius={70} outerRadius={110} paddingAngle={5} dataKey="value">
+                                                        {reportData.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                                    </Pie>
+                                                    <Tooltip />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                        <div className="mt-6 space-y-3">
+                                            {reportData.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center text-sm font-black">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-3 h-3 rounded-full" style={{backgroundColor: COLORS[idx % COLORS.length]}}></div>
+                                                        <span className="text-gray-600">{item.name}</span>
+                                                    </div>
+                                                    <span>{item.percent}%</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="lg:col-span-2 bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden flex flex-col font-black">
+                                        <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+                                            <h3 className="font-black text-lg">본부원 투입 현황 상세</h3>
+                                            <div className="flex gap-4 text-xs font-black">
+                                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-50 border border-red-200 rounded"></div> 80%↓</div>
+                                                <div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border border-gray-200 rounded"></div> 정상</div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 text-gray-400 font-black uppercase text-xs">
+                                                    <tr>
+                                                        <th className="px-8 py-5">구성원</th>
+                                                        <th className="px-8 py-5">투입 프로젝트</th>
+                                                        <th className="px-8 py-5 text-center">총 투입률</th>
+                                                        <th className="px-8 py-5">주요 업무 요약</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {employeeStatus.map(emp => (
+                                                        <tr key={emp.id} className={`transition-all ${emp.totalRate <= 80 ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
+                                                            <td className="px-8 py-6">
+                                                                <div className="text-gray-800 text-sm font-black">{emp.name}</div>
+                                                                <div className="text-xs text-gray-400 font-black mt-0.5">{emp.rank} / {emp.team}</div>
+                                                            </td>
+                                                            <td className="px-8 py-6">
+                                                                <div className="flex flex-wrap gap-1.5">
+                                                                    {emp.projects.map((p, i) => (
+                                                                        <span key={i} className="px-2 py-1 bg-white border border-gray-100 rounded-lg text-[11px] font-black text-blue-600 shadow-sm">
+                                                                            {p.name} {p.rate}%
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-8 py-6 text-center">
+                                                                <div className={`text-base font-black ${emp.totalRate <= 80 ? 'text-red-600' : 'text-blue-600'}`}>{emp.totalRate}%</div>
+                                                                <div className="w-20 mx-auto bg-gray-200 rounded-full h-1 mt-2 overflow-hidden">
+                                                                    <div className={`h-full ${emp.totalRate <= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${Math.min(emp.totalRate, 100)}%`}}></div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-8 py-6 text-xs text-gray-600 min-w-[200px]">
+                                                                <div className="line-clamp-2">{emp.projects.map(p => p.desc).filter(d => d).join(' / ') || '-'}</div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {currentPage === 'input' && (
+                            <div className="space-y-10">
+                                <div className="flex justify-between items-center flex-wrap gap-6">
+                                    <h2 className="text-3xl font-black text-gray-800 tracking-tight">리소스 입력 센터</h2>
+                                    <div className="flex items-center gap-4 text-sm">
+                                        <select className="p-3.5 bg-white border-2 border-gray-100 rounded-2xl font-black outline-none shadow-sm" onChange={(e) => setSelectedTeamFilter(e.target.value)} value={selectedTeamFilter}>
+                                            {['전체', ...teams.map(t => t.name)].map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                        <button onClick={handleSaveResources} className="px-10 py-4 bg-blue-600 text-white rounded-[20px] font-black shadow-xl hover:bg-blue-700 transition-all">전체 저장</button>
+                                    </div>
+                                </div>
+
+                                {employees.filter(e => selectedTeamFilter === '전체' || e.team === selectedTeamFilter).map(emp => (
+                                    <div key={emp.id} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8 transition-all hover:shadow-lg">
+                                        <div className="bg-gray-50/50 px-10 py-8 flex justify-between items-center border-b border-gray-100 flex-wrap gap-6">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-xl">{emp.name[0]}</div>
+                                                <div>
+                                                    <span className="font-black text-2xl text-gray-800">{emp.name}</span>
+                                                    <div className="text-sm text-gray-400 font-black mt-1">{emp.rank} / {emp.team}</div>
+                                                </div>
+                                            </div>
+                                            <div className={`text-4xl font-black ${tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) > 100 ? 'text-red-600' : 'text-blue-600'}`}>
+                                                {(tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) || 0)}<span className="text-lg ml-1">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-10 space-y-6">
+                                            {(tempInputs[emp.id] || []).map((row, idx) => (
+                                                <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end bg-gray-50 p-8 rounded-[32px] border border-gray-100 group relative font-black">
+                                                    <div className="md:col-span-3">
+                                                        <label className="text-xs text-gray-400 block mb-3">프로젝트</label>
+                                                        <select className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-sm font-black outline-none focus:border-blue-500 shadow-sm" value={row.projectId} onChange={(e) => handleUpdateRow(emp.id, idx, 'projectId', e.target.value)}>
+                                                            {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="md:col-span-4 flex items-end gap-4">
+                                                        <div className="flex-1">
+                                                            <label className="text-xs text-gray-400 block mb-3">시작일</label>
+                                                            <input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-sm font-black outline-none focus:border-blue-500 shadow-sm" value={row.startDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'startDate', e.target.value)} />
+                                                        </div>
+                                                        <span className="mb-4 text-gray-300">~</span>
+                                                        <div className="flex-1">
+                                                            <label className="text-xs text-gray-400 block mb-3">종료일</label>
+                                                            <input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-sm font-black outline-none focus:border-blue-500 shadow-sm" value={row.endDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'endDate', e.target.value)} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="md:col-span-1 text-center">
+                                                        <label className="text-xs text-gray-400 block mb-3">투입%</label>
+                                                        <input type="number" step="5" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-sm font-black text-center text-blue-600 outline-none focus:border-blue-500 shadow-sm" value={row.rate} onChange={(e) => handleUpdateRow(emp.id, idx, 'rate', e.target.value)} />
+                                                    </div>
+                                                    <div className="md:col-span-4">
+                                                        <label className="text-xs text-gray-400 block mb-3">업무 요약</label>
+                                                        <div className="flex gap-3">
+                                                            <input type="text" className="flex-1 p-4 bg-white border-2 border-transparent rounded-2xl text-sm font-black outline-none focus:border-blue-500 shadow-sm" placeholder="내용" value={row.desc} onChange={(e) => handleUpdateRow(emp.id, idx, 'desc', e.target.value)} />
+                                                            <button onClick={() => { const rows = [...tempInputs[emp.id]]; rows.splice(idx, 1); setTempInputs({...tempInputs, [emp.id]: rows}); }} className="p-4 text-gray-300 hover:text-red-500">삭제</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <button onClick={() => { const rows = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rows, { projectId: projects[0]?.name || '', rate: 0, desc: '', startDate: '', endDate: '' }]}); }} className="w-full py-6 border-2 border-dashed border-gray-100 rounded-[32px] text-gray-400 text-sm font-black hover:border-blue-300 hover:text-blue-600 flex items-center justify-center gap-3 transition-all">+ 프로젝트 추가</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {currentPage === 'admin' && (
+                            !isAdminAuth ? (
+                                <div className="flex flex-col items-center justify-center h-[600px]">
+                                    <div className="bg-white p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center">
+                                        <h2 className="text-4xl mb-4 tracking-tighter">관리자 인증</h2>
+                                        <p className="text-gray-400 mb-12">비밀번호를 입력해 주세요.</p>
+                                        <input type="password" className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-6 text-center text-3xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-blue-100 transition-all shadow-inner" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert("비밀번호 불일치")} className="w-full bg-blue-600 text-white p-6 rounded-3xl text-xl shadow-2xl hover:bg-blue-700 transition-all active:scale-[0.98]">보안 로그인</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-12">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-3xl">관리페이지 - DX본부</h2>
+                                        <button onClick={() => {setIsAdminAuth(false); setAdminPassword('');}} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-sm">로그아웃</button>
+                                    </div>
+                                    <div className="flex gap-10 border-b-2 border-gray-100">
+                                        <button onClick={() => setAdminTab('employees')} className={`pb-5 px-2 text-base ${adminTab === 'employees' ? 'border-blue-600 border-b-4 text-blue-600' : 'text-gray-400'}`}>DX본부구성원</button>
+                                        <button onClick={() => setAdminTab('masters')} className={`pb-5 px-2 text-base ${adminTab === 'masters' ? 'border-blue-600 border-b-4 text-blue-600' : 'text-gray-400'}`}>기본정보 입력</button>
+                                    </div>
+                                    <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100 text-center text-gray-500">
+                                        클라우드 연결 상태에서 데이터 관리가 가능합니다.
+                                    </div>
+                                </div>
+                            )
+                        )}
+                    </main>
+
+                    <footer className="mt-20 py-16 border-t-2 border-gray-100 text-center text-gray-400 font-black text-xs">
+                        © 2024 DX RESOURCE · CLOUD MANAGEMENT SYSTEM
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
