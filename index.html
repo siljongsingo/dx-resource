@@ -26,7 +26,7 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* 아이콘 보호용 스타일 (React 충돌 방지) */
+        /* 아이콘 보호용 스타일 */
         .icon-wrapper { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; }
         .icon-wrapper svg { width: 100%; height: 100%; }
     </style>
@@ -40,7 +40,7 @@
         </div>
     </div>
 
-    <!-- 라이브러리 로드 -->
+    <!-- 라이브러리 로드 (안정적인 버전 고정) -->
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -54,6 +54,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+        // [주의] GitHub Pages 등 외부 게시 시 아래 firebaseConfig에 본인의 Firebase 정보를 입력해야 합니다.
         let firebaseConfig = {};
         try {
             firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -69,13 +70,13 @@
             const db = getFirestore(app);
             window.fb = { auth, db, appId, signInAnonymously, signInWithCustomToken, onAuthStateChanged, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy };
         } else {
-            window.fb = null;
+            window.fb = null; 
         }
     </script>
 
     <!-- React Logic -->
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = window.Recharts;
 
         const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
@@ -100,6 +101,7 @@
             const [tempInputs, setTempInputs] = useState({});
             const [showOverloadModal, setShowOverloadModal] = useState(null);
             const [showUnitWarning, setShowUnitWarning] = useState(false);
+            const [isActionLoading, setIsActionLoading] = useState(false);
 
             const [editingId, setEditingId] = useState(null);
             const [editForm, setEditForm] = useState({ name: '', rank: '', team: '' });
@@ -108,28 +110,46 @@
 
             const handleAddEmployee = async (e) => {
                 e.preventDefault();
-                if (!window.fb) return;
+                if (!window.fb) { alert("Firebase 설정이 필요합니다."); return; }
                 const fd = new FormData(e.target);
-                await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'employees'), {
-                    name: fd.get('n'), rank: fd.get('r'), team: fd.get('t'), createdAt: new Date().toISOString()
-                });
-                e.target.reset();
+                setIsActionLoading(true);
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'employees'), {
+                        name: fd.get('n'), rank: fd.get('r'), team: fd.get('t'), createdAt: new Date().toISOString()
+                    });
+                    e.target.reset();
+                } catch (err) {
+                    alert("등록 중 오류가 발생했습니다: " + err.message);
+                } finally {
+                    setIsActionLoading(false);
+                }
             };
 
             const handleAddMaster = async (e, col) => {
                 e.preventDefault();
-                if (!window.fb) return;
+                if (!window.fb) { alert("Firebase 설정이 필요합니다."); return; }
                 const val = new FormData(e.target).get('v');
                 if (val) {
-                    await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: val });
-                    e.target.reset();
+                    setIsActionLoading(true);
+                    try {
+                        await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: val });
+                        e.target.reset();
+                    } catch (err) {
+                        alert("추가 중 오류가 발생했습니다: " + err.message);
+                    } finally {
+                        setIsActionLoading(false);
+                    }
                 }
             };
 
             const handleDelete = async (col, id) => {
                 if (!window.fb) return;
                 if (confirm('정말 삭제하시겠습니까?')) {
-                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col, id));
+                    try {
+                        await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col, id));
+                    } catch (err) {
+                        alert("삭제 중 오류 발생: " + err.message);
+                    }
                 }
             };
 
@@ -174,9 +194,16 @@
                         }
                     });
                 });
-                await Promise.all(promises);
-                setTempInputs({});
-                alert("성공적으로 저장되었습니다.");
+                try {
+                    setIsActionLoading(true);
+                    await Promise.all(promises);
+                    setTempInputs({});
+                    alert("성공적으로 저장되었습니다.");
+                } catch (err) {
+                    alert("저장 중 오류 발생: " + err.message);
+                } finally {
+                    setIsActionLoading(false);
+                }
             };
 
             const exportToCSV = () => {
@@ -248,7 +275,6 @@
                 return () => unsub.forEach(fn => fn());
             }, [user]);
 
-            // 아이콘 보호 로직
             useEffect(() => {
                 if (!loading && window.lucide) {
                     const timer = setTimeout(() => window.lucide.createIcons(), 50);
@@ -317,7 +343,7 @@
                         )}
 
                         {currentPage === 'report' && (
-                            <div className="space-y-8">
+                            <div className="space-y-8 font-black">
                                 <div className="flex justify-between items-end flex-wrap gap-4">
                                     <h2 className="text-3xl font-black text-gray-800 tracking-tight">리소스 분석 리포트</h2>
                                     <div className="px-5 py-2 bg-white border border-gray-200 rounded-2xl text-sm font-black text-gray-500 shadow-sm flex items-center gap-2">
@@ -394,8 +420,8 @@
                         )}
 
                         {currentPage === 'input' && (
-                            <div className="space-y-10">
-                                <div className="flex justify-between items-center flex-wrap gap-6 font-black">
+                            <div className="space-y-10 font-black">
+                                <div className="flex justify-between items-center flex-wrap gap-6">
                                     <h2 className="text-3xl tracking-tight">리소스 입력 센터</h2>
                                     <div className="flex items-center gap-4">
                                         <select className="p-3.5 bg-white border-2 border-gray-100 rounded-2xl text-sm font-black outline-none" onChange={(e) => setSelectedTeamFilter(e.target.value)} value={selectedTeamFilter}>
@@ -417,9 +443,9 @@
                                         <div className="p-10 space-y-6 text-sm font-black">
                                             {(tempInputs[emp.id] || []).map((row, idx) => (
                                                 <div key={`row-${emp.id}-${idx}`} className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end bg-gray-50 p-8 rounded-[32px] border border-gray-100 group relative">
-                                                    <div className="md:col-span-3"><label className="text-xs text-gray-400 block mb-3 uppercase font-black">프로젝트</label>
+                                                    <div className="md:col-span-3"><label className="text-xs text-gray-400 block mb-3 uppercase font-black">참여 리소스</label>
                                                         <select className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" value={row.projectId} onChange={(e) => handleUpdateRow(emp.id, idx, 'projectId', e.target.value)}>
-                                                            <option value="">선택</option>
+                                                            <option value="">선택하세요</option>
                                                             {projects.map(p => <option key={`opt-p-${p.id}`} value={p.name}>{p.name}</option>)}
                                                             {research.map(r => <option key={`opt-r-${r.id}`} value={r.name}>{r.name}</option>)}
                                                         </select></div>
@@ -428,7 +454,7 @@
                                                         <span className="mb-4 text-gray-300 font-black">~</span>
                                                         <div className="flex-1"><label className="text-xs text-gray-400 block mb-3 font-black">종료일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" value={row.endDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'endDate', e.target.value)} /></div></div>
                                                     <div className="md:col-span-1 text-center"><label className="text-xs text-gray-400 block mb-3 text-center font-black">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-center text-blue-600 outline-none focus:border-blue-500 shadow-sm font-black" value={row.rate} onChange={(e) => handleUpdateRow(emp.id, idx, 'rate', e.target.value)} /></div>
-                                                    <div className="md:col-span-4"><label className="text-xs text-gray-400 block mb-3 font-black">업무 요약</label><div className="flex gap-3"><input type="text" className="flex-1 p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" placeholder="업무 내용을 입력하세요" value={row.desc} onChange={(e) => handleUpdateRow(emp.id, idx, 'desc', e.target.value)} />
+                                                    <div className="md:col-span-4"><label className="text-xs text-gray-400 block mb-3 font-black">주요 업무 요약</label><div className="flex gap-3"><input type="text" className="flex-1 p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" placeholder="업무 내용을 입력하세요" value={row.desc} onChange={(e) => handleUpdateRow(emp.id, idx, 'desc', e.target.value)} />
                                                         <button onClick={() => { const rows = [...tempInputs[emp.id]]; rows.splice(idx, 1); setTempInputs({...tempInputs, [emp.id]: rows}); }} className="p-4 text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2"></i></span></button></div></div></div>
                                             ))}
                                             <button onClick={() => { const rows = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rows, { projectId: '', rate: 0, desc: '', startDate: '', endDate: '' }]}); }} className="w-full py-6 border-2 border-dashed border-gray-100 rounded-[32px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-black">+ 행 추가</button>
@@ -443,7 +469,7 @@
                                 <div className="flex flex-col items-center justify-center h-[600px] font-black">
                                     <div className="bg-white p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center">
                                         <div className="w-24 h-24 bg-blue-50 rounded-[32px] flex items-center justify-center text-blue-600 mx-auto mb-10 shadow-inner font-black"><span className="icon-wrapper"><i data-lucide="lock" style={{width:48, height:48}}></i></span></div>
-                                        <h2 className="text-4xl mb-4 tracking-tighter uppercase font-black">Admin</h2>
+                                        <h2 className="text-4xl mb-4 tracking-tighter uppercase font-black">Admin Login</h2>
                                         <p className="text-gray-400 mb-12 font-black">인증 번호를 입력해 주세요.</p>
                                         <input type="password" id="adminPwd" className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-6 text-center text-3xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-blue-100 shadow-inner font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
                                         <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert("비밀번호 불일치")} className="w-full bg-blue-600 text-white p-6 rounded-3xl text-xl shadow-2xl hover:bg-blue-700 transition-all font-black">로그인</button>
@@ -473,7 +499,9 @@
                                                     <div><label className="text-xs text-gray-400 mb-3 block uppercase tracking-widest font-black">성함</label><input name="n" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required /></div>
                                                     <div><label className="text-xs text-gray-400 mb-3 block uppercase tracking-widest font-black">직급 및 직책</label><select name="r" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{ranks.map(m => <option key={`rank-opt-${m.id}`} value={m.name}>{m.name}</option>)}</select></div>
                                                     <div><label className="text-xs text-gray-400 mb-3 block uppercase tracking-widest font-black">팀 구성</label><select name="t" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{teams.map(m => <option key={`team-opt-${m.id}`} value={m.name}>{m.name}</option>)}</select></div>
-                                                    <button className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all font-black">등록하기</button>
+                                                    <button disabled={isActionLoading} className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all font-black disabled:bg-gray-300">
+                                                        {isActionLoading ? "등록 중..." : "등록하기"}
+                                                    </button>
                                                 </form>
                                             </div>
                                             <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black">
@@ -498,7 +526,9 @@
                                                     <h3 className={`font-black text-xl mb-8 flex items-center gap-3 text-${m.color}-600 font-black`}><span className="icon-wrapper"><i data-lucide={m.icon}></i></span> {m.title}</h3>
                                                     <form onSubmit={(e) => handleAddMaster(e, m.col)} className="flex gap-3 mb-10 items-stretch font-black">
                                                         <input name="v" placeholder="새 항목 입력" className="flex-1 min-w-0 p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required />
-                                                        <button className={`bg-${m.color}-600 text-white px-6 rounded-2xl shadow-xl hover:opacity-90 font-black text-xs`}>추가</button>
+                                                        <button disabled={isActionLoading} className={`bg-${m.color}-600 text-white px-6 rounded-2xl shadow-xl hover:opacity-90 font-black text-xs disabled:bg-gray-300`}>
+                                                            {isActionLoading ? "..." : "추가"}
+                                                        </button>
                                                     </form>
                                                     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar font-black text-sm">
                                                         {m.items.map(item => (
