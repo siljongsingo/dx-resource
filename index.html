@@ -105,17 +105,19 @@
             const [showUnitWarning, setShowUnitWarning] = useState(false);
             const [isActionLoading, setIsActionLoading] = useState(false);
 
+            // 마스터 데이터 수정 관련 상태
+            const [editingMaster, setEditingMaster] = useState(null); // { id, col }
+            const [editMasterValue, setEditMasterValue] = useState('');
+
             // --- 1. 초기화 및 실시간 데이터 연결 ---
             useEffect(() => {
                 const initAuth = async () => {
                     if (window.fb) {
                         try {
-                            // 토큰 불일치 오류(custom-token-mismatch) 방지를 위한 개선된 인증 로직
                             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                                 try {
                                     await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
                                 } catch (tokenErr) {
-                                    console.warn("Custom token mismatch, falling back to anonymous...");
                                     await window.fb.signInAnonymously(window.fb.auth);
                                 }
                             } else {
@@ -159,7 +161,7 @@
                     const timer = setTimeout(() => window.lucide.createIcons(), 100);
                     return () => clearTimeout(timer);
                 }
-            }, [loading, currentPage, adminTab, employees, isAdminAuth, tempInputs, resourceEntries, showOverloadModal]);
+            }, [loading, currentPage, adminTab, employees, isAdminAuth, tempInputs, resourceEntries, showOverloadModal, editingMaster]);
 
             // --- 2. 비즈니스 로직 ---
             const handleAddEmployee = async (e) => {
@@ -186,6 +188,26 @@
                     await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: val });
                     e.target.reset();
                 } catch (err) { alert("추가 오류: " + err.message); } finally { setIsActionLoading(false); }
+            };
+
+            const startEditMaster = (item, col) => {
+                setEditingMaster({ id: item.id, col });
+                setEditMasterValue(item.name);
+            };
+
+            const handleUpdateMaster = async () => {
+                if (!user || !editingMaster) return;
+                setIsActionLoading(true);
+                try {
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', editingMaster.col, editingMaster.id), {
+                        name: editMasterValue
+                    });
+                    setEditingMaster(null);
+                } catch (err) {
+                    alert("수정 오류: " + err.message);
+                } finally {
+                    setIsActionLoading(false);
+                }
             };
 
             const handleDelete = async (col, id) => {
@@ -278,7 +300,6 @@
                         <h2 className="text-2xl mb-2">인증 오류 발생</h2>
                         <p className="text-gray-600 mb-6 font-medium leading-relaxed">환경 설정과 Firebase 프로젝트가 일치하지 않습니다.<br/>콘솔에서 '익명 로그인'을 활성화했는지 확인해 주세요.</p>
                         <button onClick={() => window.location.reload()} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">시스템 재시작</button>
-                        <p className="mt-8 text-xs text-gray-400">Error Code: {authError}</p>
                     </div>
                 );
             }
@@ -302,6 +323,7 @@
                     </nav>
 
                     <main className="p-4 md:p-8 max-w-7xl mx-auto space-y-10">
+                        {/* 경고 모달 */}
                         {showOverloadModal && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-center">
                                 <div className="bg-white rounded-[32px] p-10 max-w-sm w-full shadow-2xl">
@@ -434,15 +456,15 @@
                             !isAdminAuth ? (
                                 <div className="flex flex-col items-center justify-center h-[600px] font-black">
                                     <div className="bg-white p-12 md:p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center">
-                                        <div className="w-20 h-20 bg-blue-50 rounded-[32px] flex items-center justify-center text-blue-600 mx-auto mb-10 shadow-inner"><span className="icon-wrapper"><i data-lucide="lock" style={{width:48, height:48}}></i></span></div>
+                                        <div className="w-20 h-20 bg-blue-50 rounded-[32px] flex items-center justify-center text-blue-600 mx-auto mb-10 shadow-inner font-black"><span className="icon-wrapper"><i data-lucide="lock" style={{width:48, height:48}}></i></span></div>
                                         <h2 className="text-3xl font-black text-center mb-10 tracking-tight uppercase">Admin Login</h2>
                                         <input type="password" id="adminPwd" className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-8 text-center text-3xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-blue-100 shadow-inner font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
                                         <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert("비밀번호 불일치")} className="w-full bg-blue-600 text-white p-5 rounded-2xl text-xl shadow-2xl hover:bg-blue-700 transition-all font-black">로그인</button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-12 font-black">
-                                    <div className="flex justify-between items-center flex-wrap gap-6 text-sm">
+                                <div className="space-y-12 font-black text-sm">
+                                    <div className="flex justify-between items-center flex-wrap gap-6 font-black text-sm">
                                         <div className="flex items-center gap-4">
                                             <h2 className="text-3xl tracking-tight flex items-center gap-4 font-black"><span className="icon-wrapper"><i data-lucide="settings" className="text-gray-400"></i></span> 관리페이지</h2>
                                             <button onClick={exportCSV} className="ml-4 px-6 py-3 bg-emerald-500 text-white rounded-2xl flex items-center gap-2 hover:bg-emerald-600 shadow-lg transition-all active:scale-95 text-xs font-black">
@@ -457,7 +479,7 @@
                                     </div>
 
                                     {adminTab === 'employees' ? (
-                                        <div className="space-y-10">
+                                        <div className="space-y-10 font-black">
                                             <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100">
                                                 <h3 className="font-black text-xl mb-10 flex items-center gap-3 text-blue-600 font-black"><span className="icon-wrapper"><i data-lucide="user-plus"></i></span> 구성원 등록</h3>
                                                 <form onSubmit={handleAddEmployee} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end font-black text-sm">
@@ -469,16 +491,16 @@
                                             </div>
                                             <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black">
                                                 <div className="p-10 border-b border-gray-50 bg-gray-50/20 font-black text-lg">구성원 목록 ({employees.length}명)</div>
-                                                <div className="overflow-x-auto font-black">
+                                                <div className="overflow-x-auto">
                                                     <table className="w-full text-left font-black">
                                                         <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black tracking-widest"><tr><th className="px-10 py-6">성함</th><th className="px-10 py-6">직급</th><th className="px-10 py-6">소속 팀</th><th className="px-10 py-6 text-right">관리</th></tr></thead>
-                                                        <tbody className="divide-y divide-gray-50 text-sm font-black">{employees.map(e => (<tr key={e.id} className="group hover:bg-blue-50/30 transition-all font-black"><td className="px-10 py-6 text-gray-800 font-black font-black">{e.name}</td><td className="px-10 py-6 text-gray-500 font-black font-black">{e.rank}</td><td className="px-10 py-6 text-gray-500 font-black font-black">{e.team}</td><td className="px-10 py-6 text-right font-black"><button onClick={() => handleDelete('employees', e.id)} className="p-3 text-gray-300 hover:text-red-500 transition-all font-black font-black"><span className="icon-wrapper"><i data-lucide="trash-2" style={{width:18, height:18}}></i></span></button></td></tr>))}</tbody>
+                                                        <tbody className="divide-y divide-gray-50 text-sm font-black">{employees.map(e => (<tr key={e.id} className="group hover:bg-blue-50/30 transition-all font-black"><td className="px-10 py-6 text-gray-800 font-black">{e.name}</td><td className="px-10 py-6 text-gray-500 font-black">{e.rank}</td><td className="px-10 py-6 text-gray-500 font-black">{e.team}</td><td className="px-10 py-6 text-right font-black"><button onClick={() => handleDelete('employees', e.id)} className="p-3 text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2" style={{width:18, height:18}}></i></span></button></td></tr>))}</tbody>
                                                     </table>
                                                 </div>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-black">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-black text-sm">
                                             {[
                                                 { title: '직급 및 직책', col: 'ranks', items: ranks, color: 'purple', icon: 'layers' },
                                                 { title: '팀 구성', col: 'teams', items: teams, color: 'blue', icon: 'users' },
@@ -493,9 +515,30 @@
                                                     </form>
                                                     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar font-black text-sm">
                                                         {m.items.map(item => (
-                                                            <div key={item.id} className="flex justify-between items-center p-5 rounded-[24px] bg-gray-50 group hover:border-gray-200 border-2 border-transparent transition-all font-black">
-                                                                <span className="truncate mr-4 font-black">{item.name}</span>
-                                                                <button onClick={() => handleDelete(m.col, item.id)} className="text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2" style={{width:18, height:18}}></i></span></button>
+                                                            <div key={item.id} className={`flex justify-between items-center p-5 rounded-[24px] bg-gray-50 group transition-all border-2 ${editingMaster?.id === item.id ? `border-${m.color}-400 bg-white` : 'border-transparent hover:border-gray-200'}`}>
+                                                                {editingMaster?.id === item.id ? (
+                                                                    <div className="flex gap-2 w-full">
+                                                                        <input 
+                                                                            value={editMasterValue} 
+                                                                            onChange={e => setEditMasterValue(e.target.value)}
+                                                                            className="flex-1 p-2 border-b-2 border-gray-200 outline-none focus:border-blue-500 font-black text-sm"
+                                                                        />
+                                                                        <button onClick={handleUpdateMaster} className="text-blue-600 transition-all"><span className="icon-wrapper"><i data-lucide="check" style={{width:18, height:18}}></i></span></button>
+                                                                        <button onClick={() => setEditingMaster(null)} className="text-gray-400 transition-all"><span className="icon-wrapper"><i data-lucide="x" style={{width:18, height:18}}></i></span></button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <span className="truncate mr-4 font-black">{item.name}</span>
+                                                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                                                            <button onClick={() => startEditMaster(item, m.col)} className="text-blue-400 hover:text-blue-600 transition-all">
+                                                                                <span className="icon-wrapper"><i data-lucide="edit-2" style={{width:16, height:16}}></i></span>
+                                                                            </button>
+                                                                            <button onClick={() => handleDelete(m.col, item.id)} className="text-gray-300 hover:text-red-500 transition-all">
+                                                                                <span className="icon-wrapper"><i data-lucide="trash-2" style={{width:16, height:16}}></i></span>
+                                                                            </button>
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>
