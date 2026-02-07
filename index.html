@@ -26,8 +26,8 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* 아이콘 보호용 스타일 */
-        .icon-wrapper { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; }
+        /* 아이콘 보호용 스타일: Lucide가 DOM을 변조해도 React가 에러를 내지 않도록 보호 */
+        .icon-wrapper { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; vertical-align: middle; }
         .icon-wrapper svg { width: 100%; height: 100%; }
     </style>
 </head>
@@ -36,11 +36,11 @@
         <!-- 초기 로딩 화면 -->
         <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
             <div class="loader"></div>
-            <p style="margin-top: 20px; font-weight: bold; color: #4b5563;">데이터 동기화 준비 중...</p>
+            <p style="margin-top: 20px; font-weight: bold; color: #4b5563;">시스템을 안전하게 연결 중입니다...</p>
         </div>
     </div>
 
-    <!-- 라이브러리 로드 (안정적인 버전 고정) -->
+    <!-- 라이브러리 로드 -->
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
@@ -52,31 +52,33 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-        // [주의] GitHub Pages 등 외부 게시 시 아래 firebaseConfig에 본인의 Firebase 정보를 입력해야 합니다.
-        let firebaseConfig = {};
-        try {
-            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: ""
-            };
-        } catch(e) { console.error("Firebase Config Error", e); }
+        const firebaseConfig = {
+            apiKey: "AIzaSyB0LfujVe5IG5Z80Ov9-ARReoiVA7Jh0MI",
+            authDomain: "dx-resource.firebaseapp.com",
+            projectId: "dx-resource",
+            storageBucket: "dx-resource.firebasestorage.app",
+            messagingSenderId: "864855908479",
+            appId: "1:864855908479:web:f827811956c7372350df4a",
+            measurementId: "G-E9YQ36XJE2"
+        };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'resource-manager-dx-center';
-
-        if (firebaseConfig.apiKey) {
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            window.fb = { auth, db, appId, signInAnonymously, signInWithCustomToken, onAuthStateChanged, collection, doc, setDoc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy };
-        } else {
-            window.fb = null; 
-        }
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'dx-resource-seoul-center';
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        window.fb = { 
+            auth, db, appId, 
+            signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
+            collection, doc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy 
+        };
     </script>
 
     <!-- React Logic -->
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
+        const { useState, useEffect, useMemo } = React;
         const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = window.Recharts;
 
         const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
@@ -84,7 +86,7 @@
         const App = () => {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
-            const [fbReady, setFbReady] = useState(false);
+            const [authError, setAuthError] = useState(null);
             const [currentPage, setCurrentPage] = useState('report');
             const [adminTab, setAdminTab] = useState('employees');
             const [isAdminAuth, setIsAdminAuth] = useState(false);
@@ -103,14 +105,66 @@
             const [showUnitWarning, setShowUnitWarning] = useState(false);
             const [isActionLoading, setIsActionLoading] = useState(false);
 
-            const [editingId, setEditingId] = useState(null);
-            const [editForm, setEditForm] = useState({ name: '', rank: '', team: '' });
+            // --- 1. 초기화 및 실시간 데이터 연결 ---
+            useEffect(() => {
+                const initAuth = async () => {
+                    if (window.fb) {
+                        try {
+                            // 토큰 불일치 오류(custom-token-mismatch) 방지를 위한 개선된 인증 로직
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                try {
+                                    await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
+                                } catch (tokenErr) {
+                                    console.warn("Custom token mismatch, falling back to anonymous...");
+                                    await window.fb.signInAnonymously(window.fb.auth);
+                                }
+                            } else {
+                                await window.fb.signInAnonymously(window.fb.auth);
+                            }
+                        } catch (err) {
+                            console.error("인증 에러", err);
+                            setAuthError(err.message);
+                            setLoading(false);
+                        }
+                    }
+                };
 
-            // --- 1. Functions (Business Logic) ---
+                initAuth();
 
+                const unsubscribe = window.fb.onAuthStateChanged(window.fb.auth, (u) => {
+                    setUser(u);
+                    if (u) setLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user || !window.fb) return;
+                const getCol = (name) => window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', name);
+                
+                const unsub = [
+                    window.fb.onSnapshot(getCol('employees'), s => setEmployees(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
+                    window.fb.onSnapshot(getCol('projects'), s => setProjects(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
+                    window.fb.onSnapshot(getCol('ranks'), s => setRanks(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
+                    window.fb.onSnapshot(getCol('teams'), s => setTeams(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
+                    window.fb.onSnapshot(getCol('research'), s => setResearch(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
+                    window.fb.onSnapshot(getCol('resourceEntries'), s => setResourceEntries(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e))
+                ];
+                return () => unsub.forEach(fn => fn());
+            }, [user]);
+
+            useEffect(() => {
+                if (!loading && window.lucide) {
+                    const timer = setTimeout(() => window.lucide.createIcons(), 100);
+                    return () => clearTimeout(timer);
+                }
+            }, [loading, currentPage, adminTab, employees, isAdminAuth, tempInputs, resourceEntries, showOverloadModal]);
+
+            // --- 2. 비즈니스 로직 ---
             const handleAddEmployee = async (e) => {
                 e.preventDefault();
-                if (!window.fb) { alert("Firebase 설정이 필요합니다."); return; }
+                if (!user) return;
                 const fd = new FormData(e.target);
                 setIsActionLoading(true);
                 try {
@@ -118,38 +172,26 @@
                         name: fd.get('n'), rank: fd.get('r'), team: fd.get('t'), createdAt: new Date().toISOString()
                     });
                     e.target.reset();
-                } catch (err) {
-                    alert("등록 중 오류가 발생했습니다: " + err.message);
-                } finally {
-                    setIsActionLoading(false);
-                }
+                    alert("등록되었습니다.");
+                } catch (err) { alert("오류: " + err.message); } finally { setIsActionLoading(false); }
             };
 
             const handleAddMaster = async (e, col) => {
                 e.preventDefault();
-                if (!window.fb) { alert("Firebase 설정이 필요합니다."); return; }
+                if (!user) return;
                 const val = new FormData(e.target).get('v');
-                if (val) {
-                    setIsActionLoading(true);
-                    try {
-                        await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: val });
-                        e.target.reset();
-                    } catch (err) {
-                        alert("추가 중 오류가 발생했습니다: " + err.message);
-                    } finally {
-                        setIsActionLoading(false);
-                    }
-                }
+                if (!val) return;
+                setIsActionLoading(true);
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: val });
+                    e.target.reset();
+                } catch (err) { alert("추가 오류: " + err.message); } finally { setIsActionLoading(false); }
             };
 
             const handleDelete = async (col, id) => {
-                if (!window.fb) return;
+                if (!user || !window.fb) return;
                 if (confirm('정말 삭제하시겠습니까?')) {
-                    try {
-                        await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col, id));
-                    } catch (err) {
-                        alert("삭제 중 오류 발생: " + err.message);
-                    }
+                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col, id));
                 }
             };
 
@@ -157,163 +199,102 @@
                 const rows = [...(tempInputs[empId] || [])];
                 if ((field === 'startDate' || field === 'endDate')) {
                     const day = new Date(value).getDay();
-                    if (day === 0 || day === 6) { 
-                        alert("토요일과 일요일은 선택할 수 없습니다."); 
-                        return; 
-                    }
+                    if (day === 0 || day === 6) { alert("주말은 선택할 수 없습니다."); return; }
                 }
                 if (field === 'startDate') {
                     rows[index].startDate = value;
                     const date = new Date(value);
-                    const day = date.getDay();
-                    const diff = day <= 5 ? 5 - day : 5 + (7 - day);
+                    const diff = date.getDay() <= 5 ? 5 - date.getDay() : 5 + (7 - date.getDay());
                     date.setDate(date.getDate() + diff);
                     rows[index].endDate = date.toISOString().split('T')[0];
                 } else if (field === 'rate') {
                     const num = Number(value);
                     if (num > 0 && num % 5 !== 0) setShowUnitWarning(true);
                     rows[index].rate = num;
-                    if (rows.reduce((s, r) => s + r.rate, 0) > 100) {
-                        setShowOverloadModal(employees.find(e => e.id === empId)?.name);
-                    }
+                    if (rows.reduce((s, r) => s + r.rate, 0) > 100) setShowOverloadModal(employees.find(e => e.id === empId)?.name);
                 } else { rows[index][field] = value; }
                 setTempInputs({ ...tempInputs, [empId]: rows });
             };
 
             const handleSaveResources = async () => {
-                if (!window.fb) return;
+                if (!user) return;
                 const now = new Date().toISOString();
                 const weekStr = `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`;
                 const promises = [];
                 Object.keys(tempInputs).forEach(id => {
                     tempInputs[id].forEach(row => {
-                        if (row.rate > 0) {
-                            promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { 
-                                ...row, empId: id, timestamp: now, week: weekStr 
-                            }));
-                        }
+                        if (row.rate > 0) promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { 
+                            ...row, empId: id, timestamp: now, week: weekStr 
+                        }));
                     });
                 });
+                setIsActionLoading(true);
                 try {
-                    setIsActionLoading(true);
                     await Promise.all(promises);
                     setTempInputs({});
-                    alert("성공적으로 저장되었습니다.");
-                } catch (err) {
-                    alert("저장 중 오류 발생: " + err.message);
-                } finally {
-                    setIsActionLoading(false);
-                }
+                    alert("저장되었습니다.");
+                } finally { setIsActionLoading(false); }
             };
 
-            const exportToCSV = () => {
-                if (resourceEntries.length === 0) {
-                    alert("추출할 데이터가 없습니다.");
-                    return;
-                }
-                const headers = ["주차", "성함", "직급", "소속팀", "프로젝트", "시작일", "종료일", "투입률(%)", "업무요약"];
+            const exportCSV = () => {
+                if (resourceEntries.length === 0) { alert("데이터가 없습니다."); return; }
+                const headers = ["주차", "성함", "직급", "소속팀", "항목", "시작일", "종료일", "투입률(%)", "업무요약"];
                 const rows = resourceEntries.map(entry => {
-                    const emp = employees.find(e => e.id === entry.empId) || { name: '삭제된인원', rank: '-', team: '-' };
-                    return [
-                        entry.week || '-',
-                        emp.name,
-                        emp.rank,
-                        emp.team,
-                        entry.projectId,
-                        entry.startDate,
-                        entry.endDate,
-                        entry.rate,
-                        `"${(entry.desc || '').replace(/"/g, '""')}"`
-                    ];
+                    const emp = employees.find(e => e.id === entry.empId) || { name: '삭제됨', rank: '-', team: '-' };
+                    return [entry.week, emp.name, emp.rank, emp.team, entry.projectId, entry.startDate, entry.endDate, entry.rate, `"${(entry.desc || '').replace(/"/g, '""')}"`];
                 });
-                const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-                const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.setAttribute("href", url);
-                link.setAttribute("download", `DX_Resource_Sheet_${new Date().toISOString().split('T')[0]}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => document.body.removeChild(link), 100);
+                const csv = ["\ufeff" + headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `DX_Resource_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
             };
 
-            // --- 2. Hooks (Auth & Data) ---
-
-            useEffect(() => {
-                const checkFB = setInterval(async () => {
-                    if (window.fb !== undefined) {
-                        clearInterval(checkFB);
-                        if (window.fb === null) { setLoading(false); return; }
-                        setFbReady(true);
-                        try {
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
-                            } else {
-                                await window.fb.signInAnonymously(window.fb.auth);
-                            }
-                            window.fb.onAuthStateChanged(window.fb.auth, (u) => {
-                                setUser(u);
-                                setLoading(false);
-                            });
-                        } catch (err) { setLoading(false); }
-                    }
-                }, 200);
-                return () => clearInterval(checkFB);
-            }, []);
-
-            useEffect(() => {
-                if (!user || !window.fb) return;
-                const getCol = (name) => window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', name);
-                const unsub = [
-                    window.fb.onSnapshot(getCol('employees'), s => setEmployees(s.docs.map(d => ({ id: d.id, ...d.data() })))),
-                    window.fb.onSnapshot(getCol('projects'), s => setProjects(s.docs.map(d => ({ id: d.id, ...d.data() })))),
-                    window.fb.onSnapshot(getCol('ranks'), s => setRanks(s.docs.map(d => ({ id: d.id, ...d.data() })))),
-                    window.fb.onSnapshot(getCol('teams'), s => setTeams(s.docs.map(d => ({ id: d.id, ...d.data() })))),
-                    window.fb.onSnapshot(getCol('research'), s => setResearch(s.docs.map(d => ({ id: d.id, ...d.data() })))),
-                    window.fb.onSnapshot(getCol('resourceEntries'), s => setResourceEntries(s.docs.map(d => ({ id: d.id, ...d.data() }))))
-                ];
-                return () => unsub.forEach(fn => fn());
-            }, [user]);
-
-            useEffect(() => {
-                if (!loading && window.lucide) {
-                    const timer = setTimeout(() => window.lucide.createIcons(), 50);
-                    return () => clearTimeout(timer);
-                }
-            }, [loading, currentPage, adminTab, employees, isAdminAuth, tempInputs, resourceEntries, showOverloadModal]);
-
-            // --- 3. Computed Data ---
-
+            // --- 3. 데이터 요약 ---
             const currentWeekStr = useMemo(() => `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`, []);
-
+            
             const reportData = useMemo(() => {
                 const weekEntries = resourceEntries.filter(re => re.week === currentWeekStr);
-                const totalRateSum = weekEntries.reduce((s, r) => s + r.rate, 0);
-                return projects.map(p => {
-                    const pSum = weekEntries.filter(re => re.projectId === p.name).reduce((s, r) => s + r.rate, 0);
-                    return { name: p.name, value: pSum, percent: totalRateSum > 0 ? Math.round((pSum / totalRateSum) * 100) : 0 };
+                const total = weekEntries.reduce((s, r) => s + r.rate, 0);
+                const allCategories = [...projects, ...research];
+                return allCategories.map(p => {
+                    const sum = weekEntries.filter(re => re.projectId === p.name).reduce((s, r) => s + r.rate, 0);
+                    return { name: p.name, value: sum, percent: total > 0 ? Math.round((sum / total) * 100) : 0 };
                 }).filter(p => p.value > 0);
-            }, [resourceEntries, projects, currentWeekStr]);
+            }, [resourceEntries, projects, research, currentWeekStr]);
 
             const employeeStatus = useMemo(() => {
                 return employees.map(emp => {
                     const entries = resourceEntries.filter(re => re.empId === emp.id && re.week === currentWeekStr);
-                    return { ...emp, totalRate: entries.reduce((s, r) => s + r.rate, 0), projects: entries.map(e => ({ name: e.projectId, rate: e.rate, desc: e.desc })) };
+                    return { ...emp, total: entries.reduce((s, r) => s + r.rate, 0), projects: entries.map(e => ({ name: e.projectId, rate: e.rate, desc: e.desc })) };
                 });
             }, [employees, resourceEntries, currentWeekStr]);
+
+            if (authError) {
+                return (
+                    <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center font-black">
+                        <div className="text-red-500 mb-4"><span className="icon-wrapper"><i data-lucide="alert-circle" style={{width:48, height:48}}></i></span></div>
+                        <h2 className="text-2xl mb-2">인증 오류 발생</h2>
+                        <p className="text-gray-600 mb-6 font-medium leading-relaxed">환경 설정과 Firebase 프로젝트가 일치하지 않습니다.<br/>콘솔에서 '익명 로그인'을 활성화했는지 확인해 주세요.</p>
+                        <button onClick={() => window.location.reload()} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">시스템 재시작</button>
+                        <p className="mt-8 text-xs text-gray-400">Error Code: {authError}</p>
+                    </div>
+                );
+            }
 
             if (loading) return <div className="h-screen flex items-center justify-center bg-white"><div className="loader"></div></div>;
 
             return (
-                <div className="min-h-screen pb-20 font-bold text-sm">
+                <div className="min-h-screen pb-20 font-bold">
                     <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg">D</div>
-                            <span className="font-black text-xl tracking-tighter text-gray-800 uppercase text-sm md:text-xl">DX Resource</span>
+                        <div className="flex items-center gap-3 text-sm">
+                            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md">D</div>
+                            <span className="font-black text-xl tracking-tighter text-gray-800 uppercase">DX Resource</span>
                         </div>
-                        <div className="flex gap-1 bg-gray-100 p-1.5 rounded-2xl">
+                        <div className="flex gap-1 bg-gray-100 p-1.5 rounded-2xl text-sm">
                             {['report', 'input', 'admin'].map(p => (
-                                <button key={p} onClick={() => setCurrentPage(p)} className={`px-4 py-2 md:px-5 md:py-2.5 rounded-xl transition-all ${currentPage === p ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <button key={p} onClick={() => setCurrentPage(p)} className={`px-5 py-2.5 rounded-xl transition-all ${currentPage === p ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
                                     {p === 'report' ? '보고서' : p === 'input' ? '리소스 입력' : '관리자'}
                                 </button>
                             ))}
@@ -321,23 +302,12 @@
                     </nav>
 
                     <main className="p-4 md:p-8 max-w-7xl mx-auto space-y-10">
-                        {/* 경고 모달 */}
                         {showOverloadModal && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-center">
                                 <div className="bg-white rounded-[32px] p-10 max-w-sm w-full shadow-2xl">
                                     <h3 className="text-2xl font-black mb-3 text-red-600">투입률 초과</h3>
-                                    <p className="text-gray-600 mb-8 font-bold">{showOverloadModal}님의 투입률이 100%를 초과했습니다.</p>
+                                    <p className="text-gray-600 mb-8 font-black">{showOverloadModal}님의 투입률이 100%를 초과했습니다.</p>
                                     <button onClick={() => setShowOverloadModal(null)} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black">확인</button>
-                                </div>
-                            </div>
-                        )}
-                        
-                        {showUnitWarning && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-center">
-                                <div className="bg-white rounded-[32px] p-10 max-w-sm w-full shadow-2xl border-t-8 border-blue-500">
-                                    <h3 className="text-2xl font-black mb-3 text-blue-600">입력 단위 안내</h3>
-                                    <p className="text-gray-600 mb-8">투입률은 5% 또는 10% 단위로 입력을 부탁드립니다.</p>
-                                    <button onClick={() => setShowUnitWarning(false)} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black">알겠습니다</button>
                                 </div>
                             </div>
                         )}
@@ -345,16 +315,14 @@
                         {currentPage === 'report' && (
                             <div className="space-y-8 font-black">
                                 <div className="flex justify-between items-end flex-wrap gap-4">
-                                    <h2 className="text-3xl font-black text-gray-800 tracking-tight">리소스 분석 리포트</h2>
-                                    <div className="px-5 py-2 bg-white border border-gray-200 rounded-2xl text-sm font-black text-gray-500 shadow-sm flex items-center gap-2">
-                                        <span className="icon-wrapper"><i data-lucide="calendar" style={{width:16, height:16}}></i></span> 금주: {currentWeekStr}
+                                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">리소스 분석 리포트</h2>
+                                    <div className="px-5 py-2 bg-white border border-gray-200 rounded-2xl text-sm text-gray-500 shadow-sm flex items-center gap-2">
+                                        <span className="icon-wrapper"><i data-lucide="calendar"></i></span> 금주: {currentWeekStr}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                    <div className="lg:col-span-1 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
-                                        <h3 className="font-black text-lg mb-8 text-gray-700 flex items-center gap-2">
-                                            <span className="icon-wrapper"><i data-lucide="pie-chart" className="text-orange-500"></i></span> 프로젝트 비중
-                                        </h3>
+                                    <div className="lg:col-span-1 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col">
+                                        <h3 className="font-black text-lg mb-8 text-gray-700 flex items-center gap-2"><span className="icon-wrapper"><i data-lucide="pie-chart" className="text-orange-500"></i></span> 프로젝트 참여 비중</h3>
                                         <div className="h-[300px] flex items-center justify-center">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
@@ -365,47 +333,46 @@
                                                 </PieChart>
                                             </ResponsiveContainer>
                                         </div>
-                                        <div className="mt-6 space-y-3 font-black">
+                                        <div className="mt-6 space-y-3 font-black text-sm">
                                             {reportData.map((item, idx) => (
-                                                <div key={`report-item-${idx}`} className="flex justify-between items-center text-sm">
+                                                <div key={idx} className="flex justify-between items-center">
                                                     <span className="text-gray-600">{item.name}</span>
                                                     <span>{item.percent}%</span>
                                                 </div>
                                             ))}
+                                            {reportData.length === 0 && <p className="text-center text-gray-400 py-10 font-black">데이터 없음</p>}
                                         </div>
                                     </div>
                                     <div className="lg:col-span-2 bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
-                                        <div className="p-8 border-b border-gray-50 bg-gray-50/30 flex items-center gap-2 font-black">
-                                            <span className="icon-wrapper"><i data-lucide="user-check" className="text-blue-500"></i></span> 본부원 투입 상세 현황
-                                        </div>
+                                        <div className="p-8 border-b border-gray-50 bg-gray-50/30 flex items-center gap-2 font-black text-lg"><span className="icon-wrapper"><i data-lucide="user-check" className="text-blue-500"></i></span> 본부원 투입 상세</div>
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-left font-black">
-                                                <thead className="bg-gray-50 text-gray-400 font-black uppercase text-xs">
+                                                <thead className="bg-gray-50 text-gray-400 uppercase text-xs">
                                                     <tr>
-                                                        <th className="px-8 py-5">구성원</th>
-                                                        <th className="px-8 py-5">투입 프로젝트</th>
-                                                        <th className="px-8 py-5 text-center">총 투입률</th>
-                                                        <th className="px-8 py-5">주요 업무 요약</th>
+                                                        <th className="px-8 py-5 tracking-widest">구성원</th>
+                                                        <th className="px-8 py-5 tracking-widest">투입 내역</th>
+                                                        <th className="px-8 py-5 text-center tracking-widest">총 투입률</th>
+                                                        <th className="px-8 py-5 tracking-widest">주요 업무 요약</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-gray-50">
+                                                <tbody className="divide-y divide-gray-50 text-sm font-black">
                                                     {employeeStatus.map(emp => (
-                                                        <tr key={`report-row-${emp.id}`} className={`transition-all ${emp.totalRate <= 80 ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
+                                                        <tr key={emp.id} className={`transition-all ${emp.total <= 80 ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
                                                             <td className="px-8 py-6">
-                                                                <div className="text-gray-800 text-sm font-black">{emp.name}</div>
+                                                                <div className="text-gray-800 font-black">{emp.name}</div>
                                                                 <div className="text-xs text-gray-400 font-bold">{emp.rank} / {emp.team}</div>
                                                             </td>
                                                             <td className="px-8 py-6">
                                                                 <div className="flex flex-wrap gap-1.5">
                                                                     {emp.projects.map((p, i) => (
-                                                                        <span key={`p-${emp.id}-${i}`} className="px-2 py-1 bg-white border border-gray-100 rounded-lg text-[10px] text-blue-600 shadow-sm">{p.name} {p.rate}%</span>
+                                                                        <span key={i} className="px-2 py-0.5 bg-white border border-gray-100 rounded text-[11px] text-blue-600 shadow-sm">{p.name} {p.rate}%</span>
                                                                     ))}
                                                                 </div>
                                                             </td>
                                                             <td className="px-8 py-6 text-center">
-                                                                <div className={`text-base ${emp.totalRate <= 80 ? 'text-red-600' : 'text-blue-600'}`}>{emp.totalRate}%</div>
-                                                                <div className="w-20 mx-auto bg-gray-200 rounded-full h-1 mt-2 overflow-hidden">
-                                                                    <div className={`h-full ${emp.totalRate <= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${Math.min(emp.totalRate, 100)}%`}}></div>
+                                                                <div className={`text-base ${emp.total <= 80 ? 'text-red-600' : 'text-blue-600'}`}>{emp.total}%</div>
+                                                                <div className="w-20 mx-auto bg-gray-200 rounded-full h-1 mt-1 overflow-hidden">
+                                                                    <div className={`h-full ${emp.total <= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${Math.min(emp.total, 100)}%`}}></div>
                                                                 </div>
                                                             </td>
                                                             <td className="px-8 py-6 text-xs text-gray-500 truncate max-w-[200px] font-medium">{emp.projects.map(p => p.desc).filter(d => d).join(' / ') || '-'}</td>
@@ -424,15 +391,15 @@
                                 <div className="flex justify-between items-center flex-wrap gap-6">
                                     <h2 className="text-3xl tracking-tight">리소스 입력 센터</h2>
                                     <div className="flex items-center gap-4">
-                                        <select className="p-3.5 bg-white border-2 border-gray-100 rounded-2xl text-sm font-black outline-none" onChange={(e) => setSelectedTeamFilter(e.target.value)} value={selectedTeamFilter}>
-                                            <option value="전체">전체 팀 보기</option>
+                                        <select className="p-3 bg-white border-2 border-gray-100 rounded-2xl text-sm outline-none shadow-sm font-black" onChange={(e) => setSelectedTeamFilter(e.target.value)} value={selectedTeamFilter}>
+                                            <option value="전체">전체 보기</option>
                                             {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                         </select>
-                                        <button onClick={handleSaveResources} className="px-10 py-4 bg-blue-600 text-white rounded-[20px] shadow-xl hover:bg-blue-700 active:scale-95 transition-all text-sm font-black">전체 저장</button>
+                                        <button onClick={handleSaveResources} className="px-10 py-3.5 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all text-sm font-black">전체 저장</button>
                                     </div>
                                 </div>
                                 {employees.filter(e => selectedTeamFilter === '전체' || e.team === selectedTeamFilter).map(emp => (
-                                    <div key={`input-card-${emp.id}`} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8">
+                                    <div key={`input-${emp.id}`} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8">
                                         <div className="bg-gray-50/50 px-10 py-8 flex justify-between items-center border-b border-gray-100 flex-wrap gap-6 font-black">
                                             <div className="flex items-center gap-6">
                                                 <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-xl">{emp.name[0]}</div>
@@ -440,24 +407,23 @@
                                             </div>
                                             <div className={`text-4xl font-black ${tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) > 100 ? 'text-red-600' : 'text-blue-600'}`}>{(tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) || 0)}%</div>
                                         </div>
-                                        <div className="p-10 space-y-6 text-sm font-black">
+                                        <div className="p-8 space-y-6">
                                             {(tempInputs[emp.id] || []).map((row, idx) => (
-                                                <div key={`row-${emp.id}-${idx}`} className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end bg-gray-50 p-8 rounded-[32px] border border-gray-100 group relative">
-                                                    <div className="md:col-span-3"><label className="text-xs text-gray-400 block mb-3 uppercase font-black">참여 리소스</label>
+                                                <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-gray-50 p-6 rounded-3xl border border-gray-100 group relative">
+                                                    <div className="md:col-span-3 font-black"><label className="text-xs text-gray-400 block mb-2 uppercase">참여 리소스</label>
                                                         <select className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" value={row.projectId} onChange={(e) => handleUpdateRow(emp.id, idx, 'projectId', e.target.value)}>
                                                             <option value="">선택하세요</option>
-                                                            {projects.map(p => <option key={`opt-p-${p.id}`} value={p.name}>{p.name}</option>)}
-                                                            {research.map(r => <option key={`opt-r-${r.id}`} value={r.name}>{r.name}</option>)}
+                                                            <optgroup label="진행 프로젝트">{projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</optgroup>
+                                                            <optgroup label="제안 및 연구개발">{research.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}</optgroup>
                                                         </select></div>
-                                                    <div className="md:col-span-4 flex items-end gap-4">
-                                                        <div className="flex-1"><label className="text-xs text-gray-400 block mb-3 font-black">시작일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" value={row.startDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'startDate', e.target.value)} /></div>
+                                                    <div className="md:col-span-4 flex items-end gap-3 font-black">
+                                                        <div className="flex-1"><label className="text-xs text-gray-400 block mb-2">시작일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black text-sm" value={row.startDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'startDate', e.target.value)} /></div>
                                                         <span className="mb-4 text-gray-300 font-black">~</span>
-                                                        <div className="flex-1"><label className="text-xs text-gray-400 block mb-3 font-black">종료일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" value={row.endDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'endDate', e.target.value)} /></div></div>
-                                                    <div className="md:col-span-1 text-center"><label className="text-xs text-gray-400 block mb-3 text-center font-black">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-center text-blue-600 outline-none focus:border-blue-500 shadow-sm font-black" value={row.rate} onChange={(e) => handleUpdateRow(emp.id, idx, 'rate', e.target.value)} /></div>
-                                                    <div className="md:col-span-4"><label className="text-xs text-gray-400 block mb-3 font-black">주요 업무 요약</label><div className="flex gap-3"><input type="text" className="flex-1 p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" placeholder="업무 내용을 입력하세요" value={row.desc} onChange={(e) => handleUpdateRow(emp.id, idx, 'desc', e.target.value)} />
-                                                        <button onClick={() => { const rows = [...tempInputs[emp.id]]; rows.splice(idx, 1); setTempInputs({...tempInputs, [emp.id]: rows}); }} className="p-4 text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2"></i></span></button></div></div></div>
+                                                        <div className="flex-1"><label className="text-xs text-gray-400 block mb-2">종료일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black text-sm" value={row.endDate} onChange={(e) => handleUpdateRow(emp.id, idx, 'endDate', e.target.value)} /></div></div>
+                                                    <div className="md:col-span-1 text-center font-black"><label className="text-xs text-gray-400 block mb-2">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-center text-blue-600 outline-none focus:border-blue-500 shadow-sm font-black" value={row.rate} onChange={(e) => handleUpdateRow(emp.id, idx, 'rate', e.target.value)} /></div>
+                                                    <div className="md:col-span-4 font-black"><label className="text-xs text-gray-400 block mb-2">주요 업무 요약</label><div className="flex gap-3"><input type="text" className="flex-1 p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" placeholder="내용" value={row.desc} onChange={(e) => handleUpdateRow(emp.id, idx, 'desc', e.target.value)} /><button onClick={() => { const rows = [...tempInputs[emp.id]]; rows.splice(idx, 1); setTempInputs({...tempInputs, [emp.id]: rows}); }} className="p-3 text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2"></i></span></button></div></div></div>
                                             ))}
-                                            <button onClick={() => { const rows = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rows, { projectId: '', rate: 0, desc: '', startDate: '', endDate: '' }]}); }} className="w-full py-6 border-2 border-dashed border-gray-100 rounded-[32px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-black">+ 행 추가</button>
+                                            <button onClick={() => { const rows = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rows, { projectId: '', rate: 0, desc: '', startDate: '', endDate: '' }]}); }} className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[32px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-black">+ 행 추가</button>
                                         </div>
                                     </div>
                                 ))}
@@ -467,24 +433,23 @@
                         {currentPage === 'admin' && (
                             !isAdminAuth ? (
                                 <div className="flex flex-col items-center justify-center h-[600px] font-black">
-                                    <div className="bg-white p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center">
-                                        <div className="w-24 h-24 bg-blue-50 rounded-[32px] flex items-center justify-center text-blue-600 mx-auto mb-10 shadow-inner font-black"><span className="icon-wrapper"><i data-lucide="lock" style={{width:48, height:48}}></i></span></div>
-                                        <h2 className="text-4xl mb-4 tracking-tighter uppercase font-black">Admin Login</h2>
-                                        <p className="text-gray-400 mb-12 font-black">인증 번호를 입력해 주세요.</p>
-                                        <input type="password" id="adminPwd" className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-6 text-center text-3xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-blue-100 shadow-inner font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
-                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert("비밀번호 불일치")} className="w-full bg-blue-600 text-white p-6 rounded-3xl text-xl shadow-2xl hover:bg-blue-700 transition-all font-black">로그인</button>
+                                    <div className="bg-white p-12 md:p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center">
+                                        <div className="w-20 h-20 bg-blue-50 rounded-[32px] flex items-center justify-center text-blue-600 mx-auto mb-10 shadow-inner"><span className="icon-wrapper"><i data-lucide="lock" style={{width:48, height:48}}></i></span></div>
+                                        <h2 className="text-3xl font-black text-center mb-10 tracking-tight uppercase">Admin Login</h2>
+                                        <input type="password" id="adminPwd" className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-8 text-center text-3xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-blue-100 shadow-inner font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert("비밀번호 불일치")} className="w-full bg-blue-600 text-white p-5 rounded-2xl text-xl shadow-2xl hover:bg-blue-700 transition-all font-black">로그인</button>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="space-y-12 font-black">
-                                    <div className="flex justify-between items-center flex-wrap gap-6 font-black">
+                                    <div className="flex justify-between items-center flex-wrap gap-6 text-sm">
                                         <div className="flex items-center gap-4">
                                             <h2 className="text-3xl tracking-tight flex items-center gap-4 font-black"><span className="icon-wrapper"><i data-lucide="settings" className="text-gray-400"></i></span> 관리페이지</h2>
-                                            <button onClick={exportToCSV} className="ml-4 px-6 py-3 bg-emerald-500 text-white rounded-2xl flex items-center gap-2 hover:bg-emerald-600 shadow-lg transition-all active:scale-95 text-sm font-black">
+                                            <button onClick={exportCSV} className="ml-4 px-6 py-3 bg-emerald-500 text-white rounded-2xl flex items-center gap-2 hover:bg-emerald-600 shadow-lg transition-all active:scale-95 text-xs font-black">
                                                 <span className="icon-wrapper"><i data-lucide="download"></i></span> 데이터 시트 추출 (CSV)
                                             </button>
                                         </div>
-                                        <button onClick={() => {setIsAdminAuth(false); setAdminPassword('');}} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-sm font-black transition-all hover:bg-red-100 font-black">로그아웃</button>
+                                        <button onClick={() => {setIsAdminAuth(false); setAdminPassword('');}} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-xs font-black transition-all hover:bg-red-100">로그아웃</button>
                                     </div>
                                     <div className="flex gap-10 border-b-2 border-gray-100 font-black">
                                         <button onClick={() => setAdminTab('employees')} className={`pb-5 px-2 text-base transition-all border-b-4 font-black ${adminTab === 'employees' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}>본부 구성원</button>
@@ -495,21 +460,19 @@
                                         <div className="space-y-10">
                                             <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100">
                                                 <h3 className="font-black text-xl mb-10 flex items-center gap-3 text-blue-600 font-black"><span className="icon-wrapper"><i data-lucide="user-plus"></i></span> 구성원 등록</h3>
-                                                <form onSubmit={handleAddEmployee} className="grid grid-cols-1 md:grid-cols-4 gap-8 items-end font-black text-sm">
-                                                    <div><label className="text-xs text-gray-400 mb-3 block uppercase tracking-widest font-black">성함</label><input name="n" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required /></div>
-                                                    <div><label className="text-xs text-gray-400 mb-3 block uppercase tracking-widest font-black">직급 및 직책</label><select name="r" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{ranks.map(m => <option key={`rank-opt-${m.id}`} value={m.name}>{m.name}</option>)}</select></div>
-                                                    <div><label className="text-xs text-gray-400 mb-3 block uppercase tracking-widest font-black">팀 구성</label><select name="t" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{teams.map(m => <option key={`team-opt-${m.id}`} value={m.name}>{m.name}</option>)}</select></div>
-                                                    <button disabled={isActionLoading} className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all font-black disabled:bg-gray-300">
-                                                        {isActionLoading ? "등록 중..." : "등록하기"}
-                                                    </button>
+                                                <form onSubmit={handleAddEmployee} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end font-black text-sm">
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase tracking-widest font-black">성함</label><input name="n" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required /></div>
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase tracking-widest font-black">직급 및 직책</label><select name="r" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase tracking-widest font-black">팀 구성</label><select name="t" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                                                    <button disabled={isActionLoading} className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all font-black text-xs h-14">등록하기</button>
                                                 </form>
                                             </div>
                                             <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black">
                                                 <div className="p-10 border-b border-gray-50 bg-gray-50/20 font-black text-lg">구성원 목록 ({employees.length}명)</div>
-                                                <div className="overflow-x-auto">
+                                                <div className="overflow-x-auto font-black">
                                                     <table className="w-full text-left font-black">
                                                         <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black tracking-widest"><tr><th className="px-10 py-6">성함</th><th className="px-10 py-6">직급</th><th className="px-10 py-6">소속 팀</th><th className="px-10 py-6 text-right">관리</th></tr></thead>
-                                                        <tbody className="divide-y divide-gray-50 text-sm font-black">{employees.map(e => (<tr key={`emp-row-${e.id}`} className="group hover:bg-blue-50/30 transition-all"><td className="px-10 py-6 text-gray-800">{e.name}</td><td className="px-10 py-6 text-gray-500">{e.rank}</td><td className="px-10 py-6 text-gray-500">{e.team}</td><td className="px-10 py-6 text-right"><button onClick={() => handleDelete('employees', e.id)} className="p-3 text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2"></i></span></button></td></tr>))}</tbody>
+                                                        <tbody className="divide-y divide-gray-50 text-sm font-black">{employees.map(e => (<tr key={e.id} className="group hover:bg-blue-50/30 transition-all font-black"><td className="px-10 py-6 text-gray-800 font-black font-black">{e.name}</td><td className="px-10 py-6 text-gray-500 font-black font-black">{e.rank}</td><td className="px-10 py-6 text-gray-500 font-black font-black">{e.team}</td><td className="px-10 py-6 text-right font-black"><button onClick={() => handleDelete('employees', e.id)} className="p-3 text-gray-300 hover:text-red-500 transition-all font-black font-black"><span className="icon-wrapper"><i data-lucide="trash-2" style={{width:18, height:18}}></i></span></button></td></tr>))}</tbody>
                                                     </table>
                                                 </div>
                                             </div>
@@ -522,17 +485,15 @@
                                                 { title: '프로젝트 정보', col: 'projects', items: projects, color: 'orange', icon: 'briefcase' },
                                                 { title: 'DX제안및연구개발-사업개발 정보', col: 'research', items: research, color: 'emerald', icon: 'search' }
                                             ].map((m, idx) => (
-                                                <div key={`master-card-${idx}`} className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100 flex flex-col min-w-0 font-black">
+                                                <div key={idx} className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100 flex flex-col min-w-0 font-black">
                                                     <h3 className={`font-black text-xl mb-8 flex items-center gap-3 text-${m.color}-600 font-black`}><span className="icon-wrapper"><i data-lucide={m.icon}></i></span> {m.title}</h3>
-                                                    <form onSubmit={(e) => handleAddMaster(e, m.col)} className="flex gap-3 mb-10 items-stretch font-black">
+                                                    <form onSubmit={(e) => handleAddMaster(e, m.col)} className="flex gap-3 mb-10 items-stretch font-black text-sm">
                                                         <input name="v" placeholder="새 항목 입력" className="flex-1 min-w-0 p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required />
-                                                        <button disabled={isActionLoading} className={`bg-${m.color}-600 text-white px-6 rounded-2xl shadow-xl hover:opacity-90 font-black text-xs disabled:bg-gray-300`}>
-                                                            {isActionLoading ? "..." : "추가"}
-                                                        </button>
+                                                        <button disabled={isActionLoading} className={`bg-${m.color}-600 text-white px-6 rounded-2xl shadow-xl hover:opacity-90 font-black text-xs`}>추가</button>
                                                     </form>
                                                     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar font-black text-sm">
                                                         {m.items.map(item => (
-                                                            <div key={`item-${item.id}`} className="flex justify-between items-center p-5 rounded-[24px] bg-gray-50 group hover:border-gray-200 border-2 border-transparent transition-all font-black">
+                                                            <div key={item.id} className="flex justify-between items-center p-5 rounded-[24px] bg-gray-50 group hover:border-gray-200 border-2 border-transparent transition-all font-black">
                                                                 <span className="truncate mr-4 font-black">{item.name}</span>
                                                                 <button onClick={() => handleDelete(m.col, item.id)} className="text-gray-300 hover:text-red-500 transition-all font-black"><span className="icon-wrapper"><i data-lucide="trash-2" style={{width:18, height:18}}></i></span></button>
                                                             </div>
@@ -546,7 +507,7 @@
                             )
                         )}
                     </main>
-                    <footer className="mt-20 py-16 border-t-2 border-gray-100 text-center text-gray-400 font-black tracking-widest text-xs uppercase font-black">© 2026 DX Resource · Managed Service</footer>
+                    <footer className="mt-20 py-16 border-t-2 border-gray-100 text-center text-gray-400 font-black tracking-widest text-xs uppercase font-black tracking-widest">© 2026 DX Resource · Managed Service</footer>
                 </div>
             );
         };
