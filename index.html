@@ -83,8 +83,9 @@
             X: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>),
             Plus: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>),
             Lock: () => (<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>),
-            Calendar: () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>),
-            Download: () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>)
+            Calendar: () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>),
+            Download: () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>),
+            ChevronRight: () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>)
         };
 
         const App = () => {
@@ -103,7 +104,7 @@
             const [research, setResearch] = useState([]);
             const [resourceEntries, setResourceEntries] = useState([]);
             
-            // 입력 상태 (개별적으로 관리하여 연속 입력 보장)
+            // 입력 상태
             const [inputRank, setInputRank] = useState('');
             const [inputTeam, setInputTeam] = useState('');
             const [inputPrj, setInputPrj] = useState('');
@@ -175,7 +176,7 @@
                 setIsActionLoading(true);
                 try {
                     await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: value.trim() });
-                    setter(''); // 입력 후 상태 초기화하여 다음 입력 보장
+                    setter(''); 
                 } catch (err) { alert("저장 실패"); } finally { setIsActionLoading(false); }
             };
 
@@ -232,14 +233,27 @@
                 const promises = [];
                 Object.keys(tempInputs).forEach(eid => {
                     tempInputs[eid].forEach(row => {
-                        if (row.rate > 0) promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { ...row, empId: eid, timestamp: now, week }));
+                        if (row.rate > 0) {
+                            // 프로젝트 코드가 '내부활동-DX본부'인 경우 세부 연구개발 항목을 합쳐서 저장하거나 구분함
+                            const finalProjectId = row.projectId === '내부활동-DX본부' && row.subProjectId 
+                                ? `[내부활동] ${row.subProjectId}` 
+                                : row.projectId;
+                            
+                            promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { 
+                                ...row, 
+                                projectId: finalProjectId,
+                                empId: eid, 
+                                timestamp: now, 
+                                week 
+                            }));
+                        }
                     });
                 });
                 setIsActionLoading(true);
                 try { await Promise.all(promises); setTempInputs({}); alert("리소스가 저장되었습니다."); } finally { setIsActionLoading(false); }
             };
 
-            // --- 4. 연산 데이터 (변수명 일관성 해결) ---
+            // --- 4. 연산 데이터 ---
             const currentWeekStr = useMemo(() => `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`, []);
             
             const stats = useMemo(() => {
@@ -247,14 +261,14 @@
                 const total = entries.reduce((s, r) => s + r.rate, 0);
                 const combined = [...projects, ...research];
                 return combined.map(c => {
-                    const sum = entries.filter(e => e.projectId === c.name).reduce((s, r) => s + r.rate, 0);
+                    const sum = entries.filter(e => e.projectId.includes(c.name)).reduce((s, r) => s + r.rate, 0);
                     return { name: c.name, value: sum, percent: total > 0 ? Math.round((sum/total)*100) : 0 };
                 }).filter(d => d.value > 0);
             }, [resourceEntries, projects, research, currentWeekStr]);
 
             const statusTable = useMemo(() => {
                 return employees.map(emp => {
-                    const entries = resourceEntries.filter(e => e.empId === emp.id && e.week === currentWeekStr);
+                    const entries = resourceEntries.filter(re => re.empId === emp.id && re.week === currentWeekStr);
                     return { ...emp, total: entries.reduce((s, r) => s + r.rate, 0), list: entries.map(e => `${e.projectId}(${e.rate}%)`).join(', ') };
                 });
             }, [employees, resourceEntries, currentWeekStr]);
@@ -277,7 +291,6 @@
                     </nav>
 
                     <main className="p-4 md:p-8 max-w-7xl mx-auto space-y-10">
-                        {/* 보고서 탭 */}
                         {currentPage === 'report' && (
                             <div className="space-y-8 fade-in">
                                 <div className="flex justify-between items-end">
@@ -288,7 +301,7 @@
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                     <div className="lg:col-span-1 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col">
-                                        <h3 className="text-lg mb-6 text-gray-700 font-black font-black">참여 비중</h3>
+                                        <h3 className="text-lg mb-6 text-gray-700 font-black">참여 비중</h3>
                                         <div className="h-[250px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
@@ -301,21 +314,21 @@
                                         </div>
                                         <div className="mt-4 space-y-2 text-sm font-bold">
                                             {stats.map((item, idx) => (
-                                                <div key={idx} className="flex justify-between items-center font-black font-black"><span className="text-gray-500">{item.name}</span><span>{item.percent}%</span></div>
+                                                <div key={idx} className="flex justify-between items-center font-black"><span className="text-gray-500">{item.name}</span><span>{item.percent}%</span></div>
                                             ))}
                                         </div>
                                     </div>
                                     <div className="lg:col-span-2 bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-bold">
-                                        <div className="p-8 border-b border-gray-50 bg-gray-50/30 text-lg font-black font-black">본부원 투입 현황</div>
-                                        <div className="overflow-x-auto font-black font-black">
-                                            <table className="w-full text-left font-black font-black">
-                                                <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black"><tr><th className="px-8 py-5 font-black">이름/소속</th><th className="px-8 py-5 font-black">항목</th><th className="px-8 py-5 text-center font-black">투입률</th></tr></thead>
+                                        <div className="p-8 border-b border-gray-50 bg-gray-50/30 text-lg font-black">본부원 투입 현황</div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black"><tr><th className="px-8 py-5">이름/소속</th><th className="px-8 py-5">항목</th><th className="px-8 py-5 text-center">투입률</th></tr></thead>
                                                 <tbody className="divide-y divide-gray-50 font-black">
                                                     {statusTable.map(emp => (
                                                         <tr key={emp.id} className={emp.total <= 80 ? 'bg-red-50/50' : ''}>
-                                                            <td className="px-8 py-6 font-black font-black font-black font-black"><div className="font-black text-gray-800">{emp.name}</div><div className="text-xs text-gray-400 font-bold">{emp.rank} / {emp.team}</div></td>
-                                                            <td className="px-8 py-6 text-xs text-gray-500 font-black font-black font-black">{emp.list || '-'}</td>
-                                                            <td className="px-8 py-6 text-center font-black">
+                                                            <td className="px-8 py-6 font-black"><div className="font-black text-gray-800">{emp.name}</div><div className="text-xs text-gray-400 font-bold">{emp.rank} / {emp.team}</div></td>
+                                                            <td className="px-8 py-6 text-xs text-gray-500 font-bold">{emp.list || '-'}</td>
+                                                            <td className="px-8 py-6 text-center">
                                                                 <div className={`text-base font-black ${emp.total <= 80 ? 'text-red-600' : 'text-blue-600'}`}>{emp.total}%</div>
                                                                 <div className="w-full bg-gray-200 h-1 rounded-full mt-1 overflow-hidden font-black"><div className={`h-full ${emp.total <= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${Math.min(emp.total, 100)}%`}}></div></div>
                                                             </td>
@@ -329,7 +342,6 @@
                             </div>
                         )}
 
-                        {/* 리소스 입력 탭 */}
                         {currentPage === 'input' && (
                             <div className="space-y-10 fade-in font-black">
                                 <div className="flex justify-between items-center font-black">
@@ -339,28 +351,58 @@
                                             <option value="전체">전체 보기</option>
                                             {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                         </select>
-                                        <button onClick={saveResources} className="px-10 py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-xl hover:bg-blue-700 active:scale-95 transition-all text-sm font-black font-black">리소스 일괄 저장</button>
+                                        <button onClick={saveResources} className="px-10 py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-xl hover:bg-blue-700 transition-all text-sm font-black">리소스 일괄 저장</button>
                                     </div>
                                 </div>
                                 {employees.filter(e => selectedTeamFilter === '전체' || e.team === selectedTeamFilter).map(emp => (
-                                    <div key={emp.id} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8 font-black font-black">
+                                    <div key={emp.id} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8">
                                         <div className="bg-gray-50/50 px-8 py-6 flex justify-between items-center border-b border-gray-100 font-black">
-                                            <div className="flex items-center gap-4 font-black">
-                                                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-black font-black">{emp.name[0]}</div>
-                                                <div><span className="text-xl font-black">{emp.name}</span><div className="text-xs text-gray-400 font-bold">{emp.rank} / {emp.team}</div></div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-black">{emp.name[0]}</div>
+                                                <div><span className="text-xl font-black font-black">{emp.name}</span><div className="text-xs text-gray-400 font-bold">{emp.rank} / {emp.team}</div></div>
                                             </div>
                                             <div className={`text-3xl font-black ${tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) > 100 ? 'text-red-600' : 'text-blue-600'}`}>{(tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) || 0)}%</div>
                                         </div>
                                         <div className="p-8 space-y-4 font-black">
                                             {(tempInputs[emp.id] || []).map((row, idx) => (
                                                 <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-gray-50 p-6 rounded-3xl border border-gray-100">
-                                                    <div className="md:col-span-3 font-bold font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black uppercase font-black">참여 항목</label>
-                                                        <select className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none text-sm font-bold font-black" value={row.projectId} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].projectId = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }}>
-                                                            <option value="" className="font-black">선택</option>
-                                                            <optgroup label="진행 프로젝트">{projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</optgroup>
-                                                            <optgroup label="연구개발 항목">{research.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}</optgroup>
-                                                        </select></div>
-                                                    <div className="md:col-span-4 flex items-end gap-3 font-bold font-black">
+                                                    <div className="md:col-span-3 font-bold font-black">
+                                                        <label className="text-[10px] text-gray-400 block mb-2 font-black uppercase">프로젝트 선택</label>
+                                                        <div className="space-y-2">
+                                                            <select 
+                                                                className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none text-sm font-bold" 
+                                                                value={row.projectId} 
+                                                                onChange={(e) => { 
+                                                                    const rs = [...tempInputs[emp.id]]; 
+                                                                    rs[idx].projectId = e.target.value; 
+                                                                    if(e.target.value !== '내부활동-DX본부') rs[idx].subProjectId = '';
+                                                                    setTempInputs({...tempInputs, [emp.id]: rs}); 
+                                                                }}
+                                                            >
+                                                                <option value="">선택하세요</option>
+                                                                {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                                            </select>
+                                                            
+                                                            {row.projectId === '내부활동-DX본부' && (
+                                                                <div className="flex items-center gap-2 pl-2 border-l-4 border-blue-200 bg-blue-50/30 p-2 rounded-xl">
+                                                                    <Icons.ChevronRight />
+                                                                    <select 
+                                                                        className="flex-1 p-2 bg-white border border-blue-100 rounded-xl outline-none text-xs font-bold"
+                                                                        value={row.subProjectId}
+                                                                        onChange={(e) => {
+                                                                            const rs = [...tempInputs[emp.id]];
+                                                                            rs[idx].subProjectId = e.target.value;
+                                                                            setTempInputs({...tempInputs, [emp.id]: rs});
+                                                                        }}
+                                                                    >
+                                                                        <option value="">세부 제안/연구개발 선택</option>
+                                                                        {research.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="md:col-span-4 flex items-end gap-3 font-bold">
                                                         <div className="flex-1 font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black">시작일</label><input type="date" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-xs font-bold" value={row.startDate} onChange={(e) => { 
                                                             const rs = [...tempInputs[emp.id]]; rs[idx].startDate = e.target.value;
                                                             const d = new Date(e.target.value);
@@ -370,15 +412,15 @@
                                                             setTempInputs({...tempInputs, [emp.id]: rs});
                                                         }} /></div>
                                                         <span className="mb-4 text-gray-300 font-black">~</span>
-                                                        <div className="flex-1 font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black">종료일</label><input type="date" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-xs font-bold" value={row.endDate} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].endDate = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div></div>
-                                                    <div className="md:col-span-1 text-center font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-center text-blue-600 text-sm font-black font-black" value={row.rate} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].rate = Number(e.target.value); setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div>
-                                                    <div className="md:col-span-4 font-bold flex gap-2 font-black font-black">
-                                                        <div className="flex-1 font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black">업무 내용</label><input type="text" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-sm font-black font-black" placeholder="요약" value={row.desc} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].desc = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div>
-                                                        <button onClick={() => { const rs = [...tempInputs[emp.id]]; rs.splice(idx,1); setTempInputs({...tempInputs, [emp.id]: rs}); }} className="p-4 text-gray-300 hover:text-red-500 transition-all font-black font-black font-black font-black font-black"><Icons.Trash /></button>
+                                                        <div className="flex-1 font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black">종료일</label><input type="date" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-xs font-bold" value={row.endDate} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].endDate = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div></div>
+                                                    <div className="md:col-span-1 text-center font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-center text-blue-600 text-sm font-black" value={row.rate} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].rate = Number(e.target.value); setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div>
+                                                    <div className="md:col-span-4 font-bold flex gap-2">
+                                                        <div className="flex-1 font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black">업무 내용</label><input type="text" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-sm font-black" placeholder="요약" value={row.desc} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].desc = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div>
+                                                        <button onClick={() => { const rs = [...tempInputs[emp.id]]; rs.splice(idx,1); setTempInputs({...tempInputs, [emp.id]: rs}); }} className="p-4 text-gray-300 hover:text-red-500 transition-all font-black"><Icons.Trash /></button>
                                                     </div>
                                                 </div>
                                             ))}
-                                            <button onClick={() => { const rs = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rs, {projectId:'', rate:0, desc:'', startDate:'', endDate:''}]}); }} className="w-full py-4 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-bold flex items-center justify-center gap-2">
+                                            <button onClick={() => { const rs = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rs, {projectId:'', subProjectId: '', rate:0, desc:'', startDate:'', endDate:''}]}); }} className="w-full py-4 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-bold flex items-center justify-center gap-2">
                                                 <Icons.Plus /> 참여 항목 추가
                                             </button>
                                         </div>
@@ -387,69 +429,68 @@
                             </div>
                         )}
 
-                        {/* 관리자 탭 */}
                         {currentPage === 'admin' && (
                             !isAdminAuth ? (
-                                <div className="flex flex-col items-center justify-center h-[500px] fade-in font-black font-black">
-                                    <div className="bg-white p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center">
-                                        <div className="mb-8 flex justify-center font-black font-black font-black font-black"><Icons.Lock /></div>
-                                        <h2 className="text-2xl font-black mb-8 font-black font-black font-black">ADMIN LOGIN</h2>
+                                <div className="flex flex-col items-center justify-center h-[500px] fade-in font-black">
+                                    <div className="bg-white p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center font-black">
+                                        <div className="mb-8 flex justify-center font-black"><Icons.Lock /></div>
+                                        <h2 className="text-2xl font-black mb-8">ADMIN LOGIN</h2>
                                         <input type="password" onKeyUp={(e) => e.key === 'Enter' && (adminPassword === '9943' ? setIsAdminAuth(true) : alert('비밀번호 오류'))} className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-8 text-center text-3xl tracking-[0.5em] outline-none shadow-inner font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
-                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert('비밀번호 오류')} className="w-full bg-blue-600 text-white p-5 rounded-3xl text-xl shadow-2xl hover:bg-blue-700 active:scale-95 transition-all font-black">관리자 인증</button>
+                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert('비밀번호 오류')} className="w-full bg-blue-600 text-white p-5 rounded-3xl text-xl shadow-2xl hover:bg-blue-700 active:scale-95 transition-all font-black">인증 진행</button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-12 fade-in font-black font-black font-black">
+                                <div className="space-y-12 fade-in font-black">
                                     <div className="flex justify-between items-center font-black">
                                         <h2 className="text-3xl font-black">본부 관리 패널</h2>
-                                        <div className="flex gap-4 font-black font-black font-black">
-                                            <button onClick={exportCSV} className="px-6 py-3 bg-emerald-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center gap-2 transition-all active:scale-95 font-black">
+                                        <div className="flex gap-4 font-black">
+                                            <button onClick={exportCSV} className="px-6 py-3 bg-emerald-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center gap-2 transition-all active:scale-95">
                                                 <Icons.Download /> 데이터 추출(CSV)
                                             </button>
-                                            <button onClick={() => setIsAdminAuth(false)} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-xs font-black hover:bg-red-100 transition-all font-black font-black">로그아웃</button>
+                                            <button onClick={() => setIsAdminAuth(false)} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-xs font-black hover:bg-red-100 transition-all font-black">로그아웃</button>
                                         </div>
                                     </div>
                                     
-                                    <div className="flex gap-10 border-b-2 border-gray-100 font-bold text-gray-400 font-black font-black font-black">
-                                        <button onClick={() => setAdminTab('employees')} className={`pb-5 px-2 transition-all border-b-4 ${adminTab === 'employees' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent'}`}>본부 구성원 관리</button>
-                                        <button onClick={() => setAdminTab('masters')} className={`pb-5 px-2 transition-all border-b-4 font-black ${adminTab === 'masters' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent font-black'}`}>기본 정보 관리</button>
+                                    <div className="flex gap-10 border-b-2 border-gray-100 font-bold text-gray-400">
+                                        <button onClick={() => setAdminTab('employees')} className={`pb-4 px-2 transition-all border-b-4 ${adminTab === 'employees' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent'}`}>본부 구성원 관리</button>
+                                        <button onClick={() => setAdminTab('masters')} className={`pb-4 px-2 transition-all border-b-4 ${adminTab === 'masters' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent'}`}>기본 정보 관리</button>
                                     </div>
 
                                     {adminTab === 'employees' ? (
-                                        <div className="space-y-10 font-black font-black font-black">
-                                            <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100 font-black">
-                                                <h3 className="text-xl mb-10 text-blue-600 font-black font-black font-black">신규 직원 등록</h3>
-                                                <form onSubmit={addEmployee} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end font-black text-sm">
-                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black font-black">성함</label><input value={empForm.n} onChange={e => setEmpForm({...empForm, n: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black font-black" required /></div>
-                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black font-black font-black font-black font-black">직급</label><select value={empForm.r} onChange={e => setEmpForm({...empForm, r: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black font-black font-black font-black font-black">팀</label><select value={empForm.t} onChange={e => setEmpForm({...empForm, t: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                                        <div className="space-y-10 font-black">
+                                            <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100">
+                                                <h3 className="text-xl mb-10 text-blue-600 font-black">신규 직원 등록</h3>
+                                                <form onSubmit={addEmp} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end font-black text-sm">
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black">성함</label><input value={empForm.n} onChange={e => setEmpForm({...empForm, n: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required /></div>
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black">직급</label><select value={empForm.r} onChange={e => setEmpForm({...empForm, r: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black">팀</label><select value={empForm.t} onChange={e => setEmpForm({...empForm, t: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
                                                     <button className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl h-14 font-black">등록 완료</button>
                                                 </form>
                                             </div>
                                             <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black">
-                                                <div className="p-10 border-b border-gray-50 bg-gray-50/20 font-black text-lg">전체 직원 목록 ({employees.length}명)</div>
-                                                <div className="overflow-x-auto font-black font-black font-black">
+                                                <div className="p-10 border-b border-gray-50 bg-gray-50/20 font-black text-lg">전체 직원 리스트 ({employees.length}명)</div>
+                                                <div className="overflow-x-auto font-black font-black">
                                                     <table className="w-full text-left font-black">
-                                                        <thead className="bg-gray-50 text-gray-400 uppercase text-xs"><tr><th className="px-10 py-6">성함</th><th className="px-10 py-6">직급</th><th className="px-10 py-6">소속 팀</th><th className="px-10 py-6 text-right">관리</th></tr></thead>
-                                                        <tbody className="divide-y divide-gray-50 text-sm font-black font-black">
+                                                        <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black tracking-widest"><tr><th className="px-10 py-6">성함</th><th className="px-10 py-6">직급</th><th className="px-10 py-6">소속 팀</th><th className="px-10 py-6 text-right">관리</th></tr></thead>
+                                                        <tbody className="divide-y divide-gray-50 text-sm font-black">
                                                             {employees.map(e => (
-                                                                <tr key={e.id} className={`group hover:bg-blue-50/30 transition-all font-black font-black ${editingId === e.id ? 'bg-blue-50 font-black' : ''}`}>
+                                                                <tr key={e.id} className={`group hover:bg-blue-50/30 transition-all ${editingId === e.id ? 'bg-blue-50 font-black' : ''}`}>
                                                                     {editingId === e.id ? (
                                                                         <>
-                                                                            <td className="px-10 py-4 font-black font-black font-black"><input value={editForm.name} onChange={v => setEditForm({...editForm, name: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black" /></td>
-                                                                            <td className="px-10 py-4 font-black font-black font-black"><select value={editForm.rank} onChange={v => setEditForm({...editForm, rank: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black">{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></td>
-                                                                            <td className="px-10 py-4 font-black font-black font-black"><select value={editForm.team} onChange={v => setEditForm({...editForm, team: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black">{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></td>
-                                                                            <td className="px-10 py-4 text-right flex justify-end gap-2 font-black font-black font-black"><button onClick={updateEmployee} className="p-2 bg-blue-600 text-white rounded-lg font-black font-black"><Icons.Check /></button><button onClick={() => setEditingId(null)} className="p-2 bg-gray-200 text-gray-600 rounded-lg font-black font-black"><Icons.X /></button></td>
+                                                                            <td className="px-10 py-4 font-black"><input value={editForm.name} onChange={v => setEditForm({...editForm, name: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black" /></td>
+                                                                            <td className="px-10 py-4 font-black"><select value={editForm.rank} onChange={v => setEditForm({...editForm, rank: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black">{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></td>
+                                                                            <td className="px-10 py-4 font-black"><select value={editForm.team} onChange={v => setEditForm({...editForm, team: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black">{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></td>
+                                                                            <td className="px-10 py-4 text-right flex justify-end gap-2 font-black font-black font-black font-black font-black"><button onClick={updateEmp} className="p-2 bg-blue-600 text-white rounded-lg font-black font-black font-black"><Icons.Check /></button><button onClick={() => setEditingId(null)} className="p-2 bg-gray-200 text-gray-600 rounded-lg font-black font-black font-black font-black"><Icons.X /></button></td>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <td className="px-10 py-6 text-gray-800 font-black font-black font-black font-black">{e.name}</td>
-                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black font-black font-black">{e.rank}</td>
-                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black font-black font-black">{e.team}</td>
-                                                                            <td className="px-10 py-6 text-right font-black font-black font-black font-black">
-                                                                                <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all font-black font-black">
-                                                                                    <button onClick={() => { setEditingId(e.id); setEditForm({name: e.name, rank: e.rank, team: e.team}); }} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg transition-all font-black font-black font-black"><Icons.Edit /></button>
-                                                                                    <button onClick={() => deleteMaster('employees', e.id)} className="p-2 text-gray-300 hover:text-red-500 transition-all font-black font-black font-black"><Icons.Trash /></button>
+                                                                            <td className="px-10 py-6 text-gray-800 font-black font-black">{e.name}</td>
+                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black">{e.rank}</td>
+                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black">{e.team}</td>
+                                                                            <td className="px-10 py-6 text-right font-black font-black font-black">
+                                                                                <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all font-black">
+                                                                                    <button onClick={() => { setEditingId(e.id); setEditForm({name: e.name, rank: e.rank, team: e.team}); }} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg font-black font-black"><Icons.Edit /></button>
+                                                                                    <button onClick={() => deleteDoc('employees', e.id)} className="p-2 text-gray-300 hover:text-red-500 font-black font-black font-black"><Icons.Trash /></button>
                                                                                 </div>
                                                                             </td>
                                                                         </>
@@ -475,12 +516,12 @@
                                                         {m.btn && <button onClick={() => batchSetup(m.col, m.setup)} className={`text-[10px] bg-${m.color}-50 text-${m.color}-600 px-3 py-1.5 rounded-xl font-black`}>{m.btn}</button>}
                                                     </div>
                                                     <form onSubmit={(e) => addMaster(e, m.col, m.val, m.set)} className="flex gap-2 mb-6 font-black font-black font-black">
-                                                        <input value={m.val} onChange={e => m.set(e.target.value)} placeholder="새 항목 입력" className="flex-1 p-4 bg-gray-50 border-0 rounded-2xl outline-none font-black shadow-inner" required />
+                                                        <input value={m.val} onChange={e => m.set(e.target.value)} placeholder="새 항목 입력" className="flex-1 p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required />
                                                         <button className={`bg-${m.color}-600 text-white px-6 rounded-2xl font-black text-xs h-14`}>추가</button>
                                                     </form>
                                                     <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar font-black">
                                                         {m.items.map(item => (
-                                                            <div key={item.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 transition-all font-black ${editingMaster?.id === item.id ? `border-${m.color}-400 bg-white font-black` : 'border-transparent bg-gray-50'}`}>
+                                                            <div key={item.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 transition-all font-black ${editingMaster?.id === item.id ? `border-${m.color}-400 bg-white font-black` : 'border-transparent bg-gray-50 font-black'}`}>
                                                                 {editingMaster?.id === item.id ? (
                                                                     <div className="flex gap-2 w-full font-black"><input value={masterValue} onChange={e => setMasterValue(e.target.value)} className="flex-1 p-1 border-b-2 outline-none font-black font-black" /><button onClick={updateMaster} className="text-blue-600 font-black font-black font-black"><Icons.Check /></button><button onClick={() => setEditingMaster(null)} className="text-gray-400 font-black font-black font-black"><Icons.X /></button></div>
                                                                 ) : (
