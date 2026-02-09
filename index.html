@@ -15,43 +15,39 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
         input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; }
         
-        /* 로딩 애니메이션 */
         .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #2563eb;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2563eb;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 24px;
+            height: 24px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        /* 아이콘 보호용 스타일: React 에러 방지 */
-        .icon-box { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; vertical-align: middle; }
-        .icon-box svg { width: 100%; height: 100%; pointer-events: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 text-sm">
     <div id="root">
         <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
             <div class="loader"></div>
-            <p style="margin-top: 20px; font-weight: bold; color: #4b5563;">시스템 로딩 및 보안 연결 중...</p>
+            <p style="margin-top: 20px; font-weight: bold; color: #4b5563;">시스템을 최적화하여 연결 중입니다...</p>
         </div>
     </div>
 
-    <!-- 라이브러리 로드 -->
+    <!-- 라이브러리 로드 (순서 엄수: PropTypes -> Recharts) -->
     <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-    <script src="https://unpkg.com/lucide@0.344.0"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- Firebase SDK Setup -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, deleteDoc, onSnapshot, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, deleteDoc, onSnapshot, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB0LfujVe5IG5Z80Ov9-ARReoiVA7Jh0MI",
@@ -63,25 +59,43 @@
             measurementId: "G-E9YQ36XJE2"
         };
 
-        const appId = 'dx-resource-v1-stable';
+        const appId = 'dx-resource-final-stable-v6';
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // 전역 객체 등록
+        // window.fb 객체 구성 (누락된 함수들 추가)
         window.fb = { 
-            auth, db, appId, 
-            signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
-            collection, doc, addDoc, deleteDoc, onSnapshot, updateDoc 
+            auth, 
+            db, 
+            appId, 
+            signInAnonymously, 
+            onAuthStateChanged, // 누락되었던 핵심 함수 추가
+            collection, 
+            doc, 
+            addDoc, 
+            deleteDoc, 
+            onSnapshot, 
+            updateDoc, 
+            writeBatch 
         };
     </script>
 
-    <!-- React Logic -->
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
-        const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } = window.Recharts;
+        const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } = window.Recharts;
 
-        const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
+        // 직접 구현한 SVG 아이콘
+        const Icons = {
+            Edit: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>,
+            Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+            Check: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
+            X: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+            Plus: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+            Lock: () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+            Calendar: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+            Download: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        };
 
         const App = () => {
             const [user, setUser] = useState(null);
@@ -91,7 +105,7 @@
             const [isAdminAuth, setIsAdminAuth] = useState(false);
             const [adminPassword, setAdminPassword] = useState('');
             
-            // 데이터 저장소
+            // 데이터 상태
             const [employees, setEmployees] = useState([]);
             const [projects, setProjects] = useState([]);
             const [ranks, setRanks] = useState([]);
@@ -99,176 +113,175 @@
             const [research, setResearch] = useState([]);
             const [resourceEntries, setResourceEntries] = useState([]);
             
-            // 편집 상태 관리
+            // 입력 상태
+            const [inputRank, setInputRank] = useState('');
+            const [inputTeam, setInputTeam] = useState('');
+            const [inputPrj, setInputPrj] = useState('');
+            const [inputRes, setInputRes] = useState('');
+            const [empForm, setEmpForm] = useState({ n: '', r: '', t: '' });
+            
+            // 수정 상태
             const [editingId, setEditingId] = useState(null);
             const [editForm, setEditForm] = useState({ name: '', rank: '', team: '' });
-            const [editingMaster, setEditingMaster] = useState(null); // {id, col}
+            const [editingMaster, setEditingMaster] = useState(null); 
             const [masterValue, setMasterValue] = useState('');
 
-            // UI 상태
             const [selectedTeamFilter, setSelectedTeamFilter] = useState('전체');
             const [tempInputs, setTempInputs] = useState({});
             const [isActionLoading, setIsActionLoading] = useState(false);
 
-            // --- 1. 인증 및 데이터 스트리밍 ---
-
+            // --- 1. 초기화 및 인증 ---
             useEffect(() => {
                 const initAuth = async () => {
-                    if (!window.fb) return;
-                    try {
-                        // 인증 처리: 커스텀 토큰Mismatch 에러 방지를 위해 익명 로그인 우선 시도
-                        await window.fb.signInAnonymously(window.fb.auth);
-                        window.fb.onAuthStateChanged(window.fb.auth, (u) => {
-                            if (u) {
-                                setUser(u);
-                                setLoading(false);
-                            }
-                        });
-                    } catch (err) {
-                        console.error("Auth Error:", err);
-                        setLoading(false);
+                    if (window.fb) {
+                        try {
+                            await window.fb.signInAnonymously(window.fb.auth);
+                            // 전역 객체에 추가된 함수 사용
+                            window.fb.onAuthStateChanged(window.fb.auth, (u) => {
+                                if (u) { setUser(u); setLoading(false); }
+                            });
+                        } catch (e) { console.error("Firebase Init Error:", e); setLoading(false); }
                     }
                 };
                 initAuth();
             }, []);
 
+            // --- 2. 실시간 데이터 스트리밍 ---
             useEffect(() => {
-                if (!user || !window.fb) return;
-                const getPath = (name) => window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', name);
-                
+                if (!user) return;
+                const path = (n) => window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', n);
                 const unsub = [
-                    window.fb.onSnapshot(getPath('employees'), s => setEmployees(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
-                    window.fb.onSnapshot(getPath('projects'), s => setProjects(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
-                    window.fb.onSnapshot(getPath('ranks'), s => setRanks(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
-                    window.fb.onSnapshot(getPath('teams'), s => setTeams(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
-                    window.fb.onSnapshot(getPath('research'), s => setResearch(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e)),
-                    window.fb.onSnapshot(getPath('resourceEntries'), s => setResourceEntries(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e))
+                    window.fb.onSnapshot(path('employees'), s => setEmployees(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(path('projects'), s => setProjects(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(path('ranks'), s => setRanks(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(path('teams'), s => setTeams(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(path('research'), s => setResearch(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+                    window.fb.onSnapshot(path('resourceEntries'), s => setResourceEntries(s.docs.map(d => ({ id: d.id, ...d.data() }))))
                 ];
-                return () => unsub.forEach(fn => fn());
+                return () => unsub.forEach(f => f());
             }, [user]);
 
-            useEffect(() => {
-                if (!loading && window.lucide) {
-                    const timer = setTimeout(() => window.lucide.createIcons(), 100);
-                    return () => clearTimeout(timer);
-                }
-            }, [loading, currentPage, adminTab, employees, isAdminAuth, editingId, editingMaster, teams, ranks, projects, research]);
+            // --- 3. 비즈니스 로직 함수 ---
 
-            // --- 2. 비즈니스 로직 (CRUD) ---
-
-            const handleAddDoc = async (e, collectionName) => {
-                e.preventDefault();
-                const fd = new FormData(e.target);
-                const value = fd.get('v')?.trim();
-                if (!value) return;
-                setIsActionLoading(true);
-                try {
-                    await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', collectionName), { name: value });
-                    e.target.reset();
-                } catch (err) { alert("입력 오류: " + err.message); } finally { setIsActionLoading(false); }
+            const exportCSV = () => {
+                if (resourceEntries.length === 0) { alert("데이터가 없습니다."); return; }
+                const headers = ["주차", "성함", "직급", "소속팀", "항목", "시작일", "종료일", "투입률(%)", "업무요약"];
+                const rows = resourceEntries.map(entry => {
+                    const emp = employees.find(e => e.id === entry.empId) || { name: '-', rank: '-', team: '-' };
+                    return [entry.week, emp.name, emp.rank, emp.team, entry.projectId, entry.startDate, entry.endDate, entry.rate, `"${(entry.desc || '').replace(/"/g, '""')}"` ];
+                });
+                const csvContent = ["\ufeff" + headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `DX_Resource_Sheet_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
             };
 
-            const handleUpdateMaster = async () => {
+            const addMaster = async (e, col, value, setter) => {
+                e.preventDefault();
+                if (!value.trim()) return;
+                setIsActionLoading(true);
+                try {
+                    await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col), { name: value.trim() });
+                    setter('');
+                } catch (err) { alert("저장 중 오류"); } finally { setIsActionLoading(false); }
+            };
+
+            const updateMaster = async () => {
                 if (!editingMaster || !masterValue.trim()) return;
                 setIsActionLoading(true);
                 try {
-                    await window.fb.updateDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', editingMaster.col, editingMaster.id), {
-                        name: masterValue
-                    });
+                    await window.fb.updateDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', editingMaster.col, editingMaster.id), { name: masterValue.trim() });
                     setEditingMaster(null);
-                } catch (err) { alert("수정 오류"); } finally { setIsActionLoading(false); }
+                } catch (err) { alert("수정 중 오류"); } finally { setIsActionLoading(false); }
             };
 
-            const handleAddEmployee = async (e) => {
+            const deleteData = async (col, id) => {
+                if (confirm('삭제하시겠습니까? 관련 데이터가 모두 삭제됩니다.')) {
+                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col, id));
+                }
+            };
+
+            const addEmp = async (e) => {
                 e.preventDefault();
-                const fd = new FormData(e.target);
-                const n = fd.get('n')?.trim();
-                const r = fd.get('r');
-                const t = fd.get('t');
-                if (!n || !r || !t) return;
+                if (!empForm.n || !empForm.r || !empForm.t) return;
                 setIsActionLoading(true);
                 try {
                     await window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'employees'), {
-                        name: n, rank: r, team: t, createdAt: new Date().toISOString()
+                        name: empForm.n, rank: empForm.r, team: empForm.t, createdAt: new Date().toISOString()
                     });
-                    e.target.reset();
-                } catch (err) { alert("등록 오류"); } finally { setIsActionLoading(false); }
+                    setEmpForm({ n: '', r: '', t: '' });
+                } catch (err) { alert("등록 중 오류"); } finally { setIsActionLoading(false); }
             };
 
-            const handleUpdateEmployee = async () => {
+            const updateEmp = async () => {
                 if (!editingId) return;
                 setIsActionLoading(true);
                 try {
                     await window.fb.updateDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'employees', editingId), editForm);
                     setEditingId(null);
-                } catch (err) { alert("수정 오류"); } finally { setIsActionLoading(false); }
+                } catch (err) { alert("수정 중 오류"); } finally { setIsActionLoading(false); }
             };
 
-            const handleDeleteDoc = async (col, id) => {
-                if (confirm('삭제하시겠습니까?')) {
-                    await window.fb.deleteDoc(window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col, id));
-                }
+            const batchSetup = async (col, names) => {
+                setIsActionLoading(true);
+                try {
+                    const batch = window.fb.writeBatch(window.fb.db);
+                    const colRef = window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', col);
+                    names.forEach(name => { batch.set(window.fb.doc(colRef), { name }); });
+                    await batch.commit();
+                    alert("기본 정보들이 일괄 등록되었습니다.");
+                } catch (e) { alert("등록 오류"); } finally { setIsActionLoading(false); }
             };
 
-            const handleUpdateInputRow = (empId, index, field, value) => {
-                const rows = [...(tempInputs[empId] || [])];
-                if (field === 'startDate') {
-                    rows[index].startDate = value;
-                    const d = new Date(value);
-                    const diff = d.getDay() <= 5 ? 5 - d.getDay() : 5 + (7 - d.getDay());
-                    d.setDate(d.getDate() + diff);
-                    rows[index].endDate = d.toISOString().split('T')[0];
-                } else { rows[index][field] = value; }
-                setTempInputs({ ...tempInputs, [empId]: rows });
-            };
-
-            const handleSaveEntries = async () => {
-                const now = new Date();
-                const weekStr = `${now.getFullYear()}-W${Math.ceil(now.getDate() / 7)}`;
+            const saveResources = async () => {
+                const now = new Date().toISOString();
+                const week = `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`;
                 const promises = [];
                 Object.keys(tempInputs).forEach(eid => {
                     tempInputs[eid].forEach(row => {
-                        if (row.rate > 0) promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { 
-                            ...row, empId: eid, timestamp: now.toISOString(), week: weekStr 
-                        }));
+                        if (row.rate > 0) promises.push(window.fb.addDoc(window.fb.collection(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'resourceEntries'), { ...row, empId: eid, timestamp: now, week }));
                     });
                 });
                 setIsActionLoading(true);
-                try { await Promise.all(promises); setTempInputs({}); alert("저장되었습니다."); } finally { setIsActionLoading(false); }
+                try { await Promise.all(promises); setTempInputs({}); alert("저장이 완료되었습니다."); } finally { setIsActionLoading(false); }
             };
 
-            // --- 3. 데이터 연산 ---
+            // --- 4. 데이터 연산 ---
             const currentWeekStr = useMemo(() => `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`, []);
-            const reportData = useMemo(() => {
-                const weekEntries = resourceEntries.filter(re => re.week === currentWeekStr);
-                const total = weekEntries.reduce((s, r) => s + r.rate, 0);
-                const cats = [...projects, ...research];
-                return cats.map(p => {
-                    const sum = weekEntries.filter(re => re.projectId === p.name).reduce((s, r) => s + r.rate, 0);
-                    return { name: p.name, value: sum, percent: total > 0 ? Math.round((sum / total) * 100) : 0 };
-                }).filter(p => p.value > 0);
+            const stats = useMemo(() => {
+                const entries = resourceEntries.filter(e => e.week === currentWeekStr);
+                const total = entries.reduce((s, r) => s + r.rate, 0);
+                const combined = [...projects, ...research];
+                return combined.map(c => {
+                    const sum = entries.filter(e => e.projectId === c.name).reduce((s, r) => s + r.rate, 0);
+                    return { name: c.name, value: sum, percent: total > 0 ? Math.round((sum/total)*100) : 0 };
+                }).filter(d => d.value > 0);
             }, [resourceEntries, projects, research, currentWeekStr]);
 
-            const employeeStatus = useMemo(() => {
+            const statusTable = useMemo(() => {
                 return employees.map(emp => {
-                    const entries = resourceEntries.filter(re => re.empId === emp.id && re.week === currentWeekStr);
-                    return { ...emp, total: entries.reduce((s, r) => s + r.rate, 0), prjs: entries.map(e => ({ n: e.projectId, r: e.rate, d: e.desc })) };
+                    const entries = resourceEntries.filter(e => e.empId === emp.id && e.week === currentWeekStr);
+                    return { ...emp, total: entries.reduce((s, r) => s + r.rate, 0), list: entries.map(e => `${e.projectId}(${e.rate}%)`).join(', ') };
                 });
             }, [employees, resourceEntries, currentWeekStr]);
 
+            // --- 5. 렌더링 ---
             if (loading) return <div className="h-screen flex items-center justify-center bg-white"><div className="loader"></div></div>;
 
             return (
-                <div className="min-h-screen pb-20 font-black text-gray-800">
-                    {/* 상단 네비게이션 */}
+                <div className="min-h-screen pb-20 font-black tracking-tight text-gray-800">
                     <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-sm text-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-lg">D</div>
-                            <span className="font-black text-lg tracking-tighter uppercase">DX Resource</span>
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black">D</div>
+                            <span className="text-lg uppercase">DX RESOURCE</span>
                         </div>
-                        <div className="flex gap-1 bg-gray-100 p-1.5 rounded-2xl">
+                        <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl text-sm font-bold">
                             {['report', 'input', 'admin'].map(p => (
-                                <button key={p} onClick={() => setCurrentPage(p)} className={`px-5 py-2.5 rounded-xl transition-all ${currentPage === p ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                                <button key={p} onClick={() => setCurrentPage(p)} className={`px-5 py-2 rounded-xl transition-all ${currentPage === p ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}>
                                     {p === 'report' ? '보고서' : p === 'input' ? '리소스 입력' : '관리자'}
                                 </button>
                             ))}
@@ -278,59 +291,46 @@
                     <main className="p-4 md:p-8 max-w-7xl mx-auto space-y-10">
                         {/* 보고서 탭 */}
                         {currentPage === 'report' && (
-                            <div className="space-y-8 animate-in fade-in duration-500">
-                                <div className="flex justify-between items-end flex-wrap gap-4 font-black">
-                                    <h2 className="text-3xl font-black tracking-tight">리소스 분석 리포트</h2>
-                                    <div className="px-5 py-2 bg-white border border-gray-200 rounded-2xl text-sm text-gray-500 shadow-sm flex items-center gap-2">
-                                        <div className="icon-box"><i data-lucide="calendar"></i></div> 금주: {currentWeekStr}
+                            <div className="space-y-8 fade-in">
+                                <div className="flex justify-between items-end">
+                                    <h2 className="text-3xl font-black">리소스 분석 리포트</h2>
+                                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-gray-100 text-xs font-bold text-gray-400 shadow-sm">
+                                        <Icons.Calendar /> 금주: {currentWeekStr}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                    <div className="lg:col-span-1 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col font-black text-sm">
-                                        <h3 className="font-black text-lg mb-8 text-gray-700 flex items-center gap-2"><div className="icon-box"><i data-lucide="pie-chart" className="text-orange-500"></i></div> 카테고리 비중</h3>
-                                        <div className="h-[300px] flex items-center justify-center">
+                                    <div className="lg:col-span-1 bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col">
+                                        <h3 className="text-lg mb-6 text-gray-700">참여 비중</h3>
+                                        <div className="h-[250px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
-                                                    <Pie data={reportData} innerRadius={70} outerRadius={110} paddingAngle={5} dataKey="value">
-                                                        {reportData.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                                    <Pie data={stats} innerRadius={60} outerRadius={90} paddingAngle={5} dataKey="value">
+                                                        {stats.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                                     </Pie>
                                                     <Tooltip />
                                                 </PieChart>
                                             </ResponsiveContainer>
                                         </div>
-                                        <div className="mt-6 space-y-3 font-black">
-                                            {reportData.map((item, idx) => (
-                                                <div key={idx} className="flex justify-between items-center text-sm">
-                                                    <span className="text-gray-600">{item.name}</span>
-                                                    <span>{item.percent}%</span>
-                                                </div>
+                                        <div className="mt-4 space-y-2 text-sm font-bold">
+                                            {stats.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center"><span className="text-gray-500">{item.name}</span><span>{item.percent}%</span></div>
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="lg:col-span-2 bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black">
-                                        <div className="p-8 border-b border-gray-50 bg-gray-50/30 flex items-center gap-2 font-black text-lg"><div className="icon-box"><i data-lucide="user-check" className="text-blue-500"></i></div> 투입 상세 현황</div>
-                                        <div className="overflow-x-auto font-black">
-                                            <table className="w-full text-left font-black">
-                                                <thead className="bg-gray-50 text-gray-400 uppercase text-xs">
-                                                    <tr><th className="px-8 py-5">구성원</th><th className="px-8 py-5">투입 내역</th><th className="px-8 py-5 text-center">총 투입률</th><th className="px-8 py-5">요약</th></tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-50 text-sm font-black">
-                                                    {employeeStatus.map(emp => (
-                                                        <tr key={emp.id} className={`transition-all ${emp.total <= 80 ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-                                                            <td className="px-8 py-6">
-                                                                <div className="text-gray-800 font-black">{emp.name}</div>
-                                                                <div className="text-xs text-gray-400 font-black">{emp.rank} / {emp.team}</div>
-                                                            </td>
-                                                            <td className="px-8 py-6">
-                                                                <div className="flex flex-wrap gap-1.5">
-                                                                    {emp.prjs.map((p, i) => (<span key={i} className="px-2 py-0.5 bg-white border border-gray-100 rounded text-[10px] text-blue-600 shadow-sm font-black">{p.n} {p.r}%</span>))}
-                                                                </div>
-                                                            </td>
+                                    <div className="lg:col-span-2 bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-bold">
+                                        <div className="p-8 border-b border-gray-50 bg-gray-50/30 text-lg">본부원 투입 현황</div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 text-gray-400 uppercase text-xs"><tr><th className="px-8 py-5">구성원</th><th className="px-8 py-5">투입 항목</th><th className="px-8 py-5 text-center">투입률</th></tr></thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {statusTable.map(emp => (
+                                                        <tr key={emp.id} className={emp.total <= 80 ? 'bg-red-50/50' : ''}>
+                                                            <td className="px-8 py-6 font-black"><div className="font-black text-gray-800">{emp.name}</div><div className="text-xs text-gray-400 font-bold">{emp.rank} / {emp.team}</div></td>
+                                                            <td className="px-8 py-6 text-xs text-gray-500">{emp.list || '-'}</td>
                                                             <td className="px-8 py-6 text-center">
                                                                 <div className={`text-base font-black ${emp.total <= 80 ? 'text-red-600' : 'text-blue-600'}`}>{emp.total}%</div>
-                                                                <div className="w-20 mx-auto bg-gray-200 rounded-full h-1 mt-1 overflow-hidden font-black"><div className={`h-full ${emp.total <= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${Math.min(emp.total, 100)}%`}}></div></div>
+                                                                <div className="w-full bg-gray-200 h-1 rounded-full mt-1 overflow-hidden"><div className={`h-full ${emp.total <= 80 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${Math.min(emp.total, 100)}%`}}></div></div>
                                                             </td>
-                                                            <td className="px-8 py-6 text-xs text-gray-500 truncate max-w-[200px] font-black">{emp.prjs.map(p => p.d).filter(d => d).join(' / ') || '-'}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -343,43 +343,56 @@
 
                         {/* 리소스 입력 탭 */}
                         {currentPage === 'input' && (
-                            <div className="space-y-10 font-black animate-in fade-in duration-500">
-                                <div className="flex justify-between items-center flex-wrap gap-6 font-black">
-                                    <h2 className="text-3xl tracking-tight font-black">리소스 입력 센터</h2>
-                                    <div className="flex items-center gap-4">
-                                        <select className="p-3 bg-white border-2 border-gray-100 rounded-2xl text-sm outline-none font-black" onChange={(e) => setSelectedTeamFilter(e.target.value)} value={selectedTeamFilter}>
-                                            <option value="전체">전체 팀 보기</option>
+                            <div className="space-y-10 fade-in font-black font-black">
+                                <div className="flex justify-between items-center font-black font-black font-black font-black">
+                                    <h2 className="text-3xl font-black font-black">리소스 실시간 입력</h2>
+                                    <div className="flex gap-4">
+                                        <select className="p-3 bg-white border-2 border-gray-100 rounded-2xl text-sm outline-none shadow-sm font-black" onChange={(e) => setSelectedTeamFilter(e.target.value)} value={selectedTeamFilter}>
+                                            <option value="전체">전체 보기</option>
                                             {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                         </select>
-                                        <button onClick={handleSaveEntries} className="px-10 py-3.5 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all text-sm font-black">전체 저장</button>
+                                        <button onClick={saveResources} className="px-10 py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-xl hover:bg-blue-700 active:scale-95 transition-all text-sm font-black font-black font-black">리소스 일괄 저장</button>
                                     </div>
                                 </div>
                                 {employees.filter(e => selectedTeamFilter === '전체' || e.team === selectedTeamFilter).map(emp => (
-                                    <div key={emp.id} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8 font-black">
-                                        <div className="bg-gray-50/50 px-10 py-8 flex justify-between items-center border-b border-gray-100 flex-wrap gap-6 font-black">
-                                            <div className="flex items-center gap-6 font-black">
-                                                <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl shadow-xl">{emp.name[0]}</div>
-                                                <div><span className="font-black text-2xl text-gray-800 font-black">{emp.name}</span><div className="text-sm text-gray-400 font-black mt-1 uppercase font-black">{emp.rank} / {emp.team}</div></div>
+                                    <div key={emp.id} className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-8 font-black font-black">
+                                        <div className="bg-gray-50/50 px-8 py-6 flex justify-between items-center border-b border-gray-100">
+                                            <div className="flex items-center gap-4 font-black font-black">
+                                                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-black font-black font-black font-black font-black">{emp.name[0]}</div>
+                                                <div className="font-black font-black"><span className="text-xl font-black font-black">{emp.name}</span><div className="text-xs text-gray-400 font-bold font-black">{emp.rank} / {emp.team}</div></div>
                                             </div>
-                                            <div className={`text-4xl font-black ${tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) > 100 ? 'text-red-600' : 'text-blue-600'}`}>{(tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) || 0)}%</div>
+                                            <div className={`text-3xl font-black font-black ${tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) > 100 ? 'text-red-600 font-black' : 'text-blue-600 font-black'}`}>{(tempInputs[emp.id]?.reduce((s,r) => s+r.rate,0) || 0)}%</div>
                                         </div>
-                                        <div className="p-8 space-y-6">
+                                        <div className="p-8 space-y-4 font-black font-black">
                                             {(tempInputs[emp.id] || []).map((row, idx) => (
-                                                <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-gray-50 p-6 rounded-3xl border border-gray-100 group relative font-black">
-                                                    <div className="md:col-span-3 font-black"><label className="text-xs text-gray-400 block mb-2 uppercase">항목 선택</label>
-                                                        <select className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" value={row.projectId} onChange={(e) => handleUpdateInputRow(emp.id, idx, 'projectId', e.target.value)}>
-                                                            <option value="">선택하세요</option>
-                                                            <optgroup label="진행 프로젝트">{projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</optgroup>
-                                                            <optgroup label="DX제안 및 연구개발">{research.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}</optgroup>
+                                                <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-gray-50 p-6 rounded-3xl border border-gray-100 font-black">
+                                                    <div className="md:col-span-3 font-bold font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black uppercase font-black font-black font-black">참여 리소스</label>
+                                                        <select className="w-full p-4 bg-white border border-gray-200 rounded-2xl outline-none text-sm font-bold font-black font-black" value={row.projectId} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].projectId = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }}>
+                                                            <option value="" className="font-black font-black">선택</option>
+                                                            <optgroup label="진행 프로젝트 font-black font-black font-black">{projects.map(p => <option key={p.id} value={p.name} className="font-black">{p.name}</option>)}</optgroup>
+                                                            <optgroup label="연구개발 항목 font-black font-black font-black">{research.map(r => <option key={r.id} value={r.name} className="font-black">{r.name}</option>)}</optgroup>
                                                         </select></div>
-                                                    <div className="md:col-span-4 flex items-end gap-3 font-black">
-                                                        <div className="flex-1"><label className="text-xs text-gray-400 block mb-2">시작일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black text-sm" value={row.startDate} onChange={(e) => handleUpdateInputRow(emp.id, idx, 'startDate', e.target.value)} /></div>
-                                                        <span className="mb-4 text-gray-300 font-black">~</span>
-                                                        <div className="flex-1"><label className="text-xs text-gray-400 block mb-2">종료일</label><input type="date" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black text-sm" value={row.endDate} onChange={(e) => handleUpdateInputRow(emp.id, idx, 'endDate', e.target.value)} /></div></div>
-                                                    <div className="md:col-span-1 text-center font-black"><label className="text-xs text-gray-400 block mb-2">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border-2 border-transparent rounded-2xl text-center text-blue-600 outline-none focus:border-blue-500 shadow-sm font-black font-black" value={row.rate} onChange={(e) => handleUpdateInputRow(emp.id, idx, 'rate', Number(e.target.value))} /></div>
-                                                    <div className="md:col-span-4 font-black"><label className="text-xs text-gray-400 block mb-2 font-black">업무 요약</label><div className="flex gap-3 font-black"><input type="text" className="flex-1 p-4 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-blue-500 shadow-sm font-black" placeholder="내용" value={row.desc} onChange={(e) => handleUpdateInputRow(emp.id, idx, 'desc', e.target.value)} /><button onClick={() => { const rs = [...tempInputs[emp.id]]; rs.splice(idx,1); setTempInputs({...tempInputs, [emp.id]: rs}); }} className="p-3 text-gray-300 hover:text-red-500 transition-all font-black"><div className="icon-box"><i data-lucide="trash-2"></i></div></button></div></div></div>
+                                                    <div className="md:col-span-4 flex items-end gap-3 font-black font-black">
+                                                        <div className="flex-1 font-black font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black">시작일</label><input type="date" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-xs font-black font-black font-black" value={row.startDate} onChange={(e) => { 
+                                                            const rs = [...tempInputs[emp.id]]; rs[idx].startDate = e.target.value;
+                                                            const d = new Date(e.target.value);
+                                                            const diff = d.getDay() <= 5 ? 5 - d.getDay() : 5 + (7 - d.getDay());
+                                                            d.setDate(d.getDate() + diff);
+                                                            rs[idx].endDate = d.toISOString().split('T')[0];
+                                                            setTempInputs({...tempInputs, [emp.id]: rs});
+                                                        }} /></div>
+                                                        <span className="mb-4 text-gray-300 font-black font-black">~</span>
+                                                        <div className="flex-1 font-black font-black font-black font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black">종료일</label><input type="date" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-xs font-black font-black" value={row.endDate} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].endDate = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div></div>
+                                                    <div className="md:col-span-1 text-center font-black font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black font-black">투입%</label><input type="number" step="5" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-center text-blue-600 text-sm font-black font-black font-black font-black" value={row.rate} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].rate = Number(e.target.value); setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div>
+                                                    <div className="md:col-span-4 font-bold flex gap-2 font-black font-black">
+                                                        <div className="flex-1 font-black font-black font-black font-black font-black font-black"><label className="text-[10px] text-gray-400 block mb-2 font-black font-black">업무 상세 내용</label><input type="text" className="w-full p-4 bg-white border border-gray-200 rounded-2xl text-sm font-black font-black" placeholder="요약" value={row.desc} onChange={(e) => { const rs = [...tempInputs[emp.id]]; rs[idx].desc = e.target.value; setTempInputs({...tempInputs, [emp.id]: rs}); }} /></div>
+                                                        <button onClick={() => { const rs = [...tempInputs[emp.id]]; rs.splice(idx,1); setTempInputs({...tempInputs, [emp.id]: rs}); }} className="p-4 text-gray-300 hover:text-red-500 transition-all font-black font-black font-black"><Icons.Trash /></button>
+                                                    </div>
+                                                </div>
                                             ))}
-                                            <button onClick={() => { const rs = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rs, {projectId:'', rate:0, desc:'', startDate:'', endDate:''}]}); }} className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[32px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-black font-black">+ 항목 추가</button>
+                                            <button onClick={() => { const rs = tempInputs[emp.id] || []; setTempInputs({...tempInputs, [emp.id]: [...rs, {projectId:'', rate:0, desc:'', startDate:'', endDate:''}]}); }} className="w-full py-4 border-2 border-dashed border-gray-200 rounded-[28px] text-gray-400 hover:border-blue-300 hover:text-blue-600 transition-all font-bold flex items-center justify-center gap-2">
+                                                <Icons.Plus /> 참여 항목 추가
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -389,65 +402,66 @@
                         {/* 관리자 탭 */}
                         {currentPage === 'admin' && (
                             !isAdminAuth ? (
-                                <div className="flex flex-col items-center justify-center h-[600px] font-black font-black font-black">
-                                    <div className="bg-white p-12 md:p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center font-black">
-                                        <div className="w-20 h-20 bg-blue-50 rounded-[32px] flex items-center justify-center text-blue-600 mx-auto mb-10 shadow-inner font-black font-black"><div className="icon-box font-black"><i data-lucide="lock" style={{width:48, height:48}}></i></div></div>
-                                        <h2 className="text-3xl font-black text-center mb-10 tracking-tight uppercase font-black">Admin Login</h2>
-                                        <input type="password" className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-8 text-center text-3xl tracking-[0.5em] outline-none focus:ring-4 focus:ring-blue-100 shadow-inner font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
-                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert("비밀번호 불일치")} className="w-full bg-blue-600 text-white p-5 rounded-2xl text-xl shadow-2xl hover:bg-blue-700 transition-all font-black">로그인</button>
+                                <div className="flex flex-col items-center justify-center h-[500px] fade-in font-black">
+                                    <div className="bg-white p-16 rounded-[60px] shadow-2xl border border-gray-100 w-full max-w-md mx-4 text-center font-black">
+                                        <div className="mb-8 flex justify-center font-black font-black font-black font-black font-black"><Icons.Lock /></div>
+                                        <h2 className="text-2xl font-black mb-8 font-black font-black font-black">ADMIN LOGIN</h2>
+                                        <input type="password" onKeyUp={(e) => e.key === 'Enter' && (adminPassword === '9943' ? setIsAdminAuth(true) : alert('비밀번호 오류'))} className="w-full p-6 bg-gray-50 border-0 rounded-3xl mb-8 text-center text-3xl tracking-[0.5em] outline-none shadow-inner font-black font-black font-black" placeholder="••••" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} />
+                                        <button onClick={() => adminPassword === '9943' ? setIsAdminAuth(true) : alert('비밀번호 오류')} className="w-full bg-blue-600 text-white p-5 rounded-3xl text-xl shadow-2xl hover:bg-blue-700 active:scale-95 transition-all font-black font-black font-black font-black">관리자 인증하기</button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-12 font-black animate-in slide-in-from-bottom-4 duration-500">
-                                    <div className="flex justify-between items-center flex-wrap gap-6 font-black text-sm">
-                                        <div className="flex items-center gap-4">
-                                            <h2 className="text-3xl tracking-tight flex items-center gap-4 font-black"><div className="icon-box font-black font-black"><i data-lucide="settings" className="text-gray-400"></i></div> 관리페이지</h2>
-                                            <button onClick={exportCSV} className="ml-4 px-6 py-3 bg-emerald-500 text-white rounded-2xl flex items-center gap-2 hover:bg-emerald-600 shadow-lg active:scale-95 transition-all text-xs font-black">
-                                                <div className="icon-box font-black font-black"><i data-lucide="download"></i></div> 데이터 시트 추출 (CSV)
+                                <div className="space-y-12 fade-in font-black">
+                                    <div className="flex justify-between items-center font-black">
+                                        <h2 className="text-3xl font-black">본부 관리 센터</h2>
+                                        <div className="flex gap-4 font-black">
+                                            <button onClick={exportCSV} className="px-6 py-3 bg-emerald-500 text-white rounded-2xl text-xs font-black shadow-lg flex items-center gap-2 transition-all active:scale-95 font-black font-black">
+                                                <Icons.Download /> 데이터 추출(CSV)
                                             </button>
+                                            <button onClick={() => setIsAdminAuth(false)} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-xs font-black hover:bg-red-100 transition-all font-black font-black font-black">로그아웃</button>
                                         </div>
-                                        <button onClick={() => {setIsAdminAuth(false); setAdminPassword('');}} className="px-6 py-3 text-red-500 bg-red-50 rounded-2xl text-xs font-black hover:bg-red-100 font-black">로그아웃</button>
                                     </div>
-                                    <div className="flex gap-10 border-b-2 border-gray-100 font-black">
-                                        <button onClick={() => setAdminTab('employees')} className={`pb-5 px-2 text-base transition-all border-b-4 font-black ${adminTab === 'employees' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}>본부 구성원</button>
-                                        <button onClick={() => setAdminTab('masters')} className={`pb-5 px-2 text-base transition-all border-b-4 font-black ${adminTab === 'masters' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}>기본정보 입력</button>
+                                    
+                                    <div className="flex gap-10 border-b-2 border-gray-100 font-bold text-gray-400 font-black font-black">
+                                        <button onClick={() => setAdminTab('employees')} className={`pb-5 px-2 transition-all border-b-4 font-black font-black ${adminTab === 'employees' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent'}`}>본부 구성원 관리</button>
+                                        <button onClick={() => setAdminTab('masters')} className={`pb-5 px-2 transition-all border-b-4 font-black font-black ${adminTab === 'masters' ? 'border-blue-600 text-blue-600 font-black' : 'border-transparent'}`}>기본 정보 관리</button>
                                     </div>
 
                                     {adminTab === 'employees' ? (
-                                        <div className="space-y-10 font-black text-sm">
-                                            <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100 font-black">
-                                                <h3 className="font-black text-xl mb-10 flex items-center gap-3 text-blue-600 font-black"><div className="icon-box font-black font-black"><i data-lucide="user-plus"></i></div> 구성원 등록</h3>
-                                                <form onSubmit={handleAddEmployee} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end font-black text-sm font-black font-black">
-                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase tracking-widest font-black">성함</label><input name="n" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required /></div>
-                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase tracking-widest font-black">직급 및 직책</label><select name="r" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase tracking-widest font-black">팀 구성</label><select name="t" className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required><option value="">선택</option>{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></div>
-                                                    <button disabled={isActionLoading} className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl hover:bg-blue-700 active:scale-95 transition-all font-black text-xs h-14">등록하기</button>
+                                        <div className="space-y-10 font-black font-black font-black font-black">
+                                            <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100 font-black font-black">
+                                                <h3 className="text-xl mb-10 text-blue-600 font-black font-black font-black font-black font-black">신규 직원 등록</h3>
+                                                <form onSubmit={addEmp} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end font-black text-sm">
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black font-black">성함</label><input value={empForm.n} onChange={e => setEmpForm({...empForm, n: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black font-black font-black font-black" required /></div>
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black font-black">직급</label><select value={empForm.r} onChange={e => setEmpForm({...empForm, r: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black font-black font-black font-black" required><option value="" className="font-black">선택</option>{ranks.map(m => <option key={m.id} value={m.name} className="font-black">{m.name}</option>)}</select></div>
+                                                    <div><label className="text-xs text-gray-400 mb-2 block uppercase font-black font-black font-black">소속 팀</label><select value={empForm.t} onChange={e => setEmpForm({...empForm, t: e.target.value})} className="w-full p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black font-black font-black font-black" required><option value="" className="font-black font-black">선택</option>{teams.map(m => <option key={m.id} value={m.name} className="font-black font-black">{m.name}</option>)}</select></div>
+                                                    <button className="bg-blue-600 text-white p-5 rounded-2xl shadow-xl h-14 font-black font-black font-black font-black">등록 완료</button>
                                                 </form>
                                             </div>
-                                            <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black">
-                                                <div className="p-10 border-b border-gray-50 bg-gray-50/20 font-black text-lg">전체 목록 ({employees.length}명)</div>
-                                                <div className="overflow-x-auto font-black">
-                                                    <table className="w-full text-left font-black">
-                                                        <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black tracking-widest"><tr><th className="px-10 py-6 font-black font-black">성함</th><th className="px-10 py-6 font-black font-black">직급</th><th className="px-10 py-6 font-black font-black">소속 팀</th><th className="px-10 py-6 text-right font-black font-black">관리</th></tr></thead>
-                                                        <tbody className="divide-y divide-gray-50 text-sm font-black">
+                                            <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden font-black font-black font-black">
+                                                <div className="p-10 border-b border-gray-50 bg-gray-50/20 font-black text-lg font-black font-black font-black font-black">본부원 목록 ({employees.length}명)</div>
+                                                <div className="overflow-x-auto font-black font-black font-black">
+                                                    <table className="w-full text-left font-black font-black">
+                                                        <thead className="bg-gray-50 text-gray-400 uppercase text-xs font-black font-black"><tr><th className="px-10 py-6 font-black font-black font-black">성함</th><th className="px-10 py-6 font-black font-black font-black">직급</th><th className="px-10 py-6 font-black font-black font-black">소속 팀</th><th className="px-10 py-6 text-right font-black font-black font-black font-black font-black">관리</th></tr></thead>
+                                                        <tbody className="divide-y divide-gray-50 text-sm font-black font-black font-black">
                                                             {employees.map(e => (
-                                                                <tr key={e.id} className={`group hover:bg-blue-50/30 transition-all font-black ${editingId === e.id ? 'bg-blue-50' : ''}`}>
+                                                                <tr key={e.id} className={`group hover:bg-blue-50/30 transition-all font-black font-black font-black ${editingId === e.id ? 'bg-blue-50 font-black' : ''}`}>
                                                                     {editingId === e.id ? (
                                                                         <>
-                                                                            <td className="px-10 py-4 font-black font-black"><input value={editForm.name} onChange={v => setEditForm({...editForm, name: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black" /></td>
-                                                                            <td className="px-10 py-4 font-black font-black"><select value={editForm.rank} onChange={v => setEditForm({...editForm, rank: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black font-black">{ranks.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></td>
-                                                                            <td className="px-10 py-4 font-black font-black"><select value={editForm.team} onChange={v => setEditForm({...editForm, team: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black font-black">{teams.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select></td>
-                                                                            <td className="px-10 py-4 text-right flex justify-end gap-2 font-black"><button onClick={handleUpdateEmployee} className="p-2 bg-blue-600 text-white rounded-lg font-black font-black font-black"><div className="icon-box font-black font-black font-black"><i data-lucide="check"></i></div></button><button onClick={() => setEditingId(null)} className="p-2 bg-gray-200 text-gray-600 rounded-lg font-black"><div className="icon-box font-black"><i data-lucide="x"></i></div></button></td>
+                                                                            <td className="px-10 py-4 font-black font-black font-black font-black font-black"><input value={editForm.name} onChange={v => setEditForm({...editForm, name: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black font-black font-black" /></td>
+                                                                            <td className="px-10 py-4 font-black font-black font-black font-black font-black"><select value={editForm.rank} onChange={v => setEditForm({...editForm, rank: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black font-black font-black font-black font-black">{ranks.map(m => <option key={m.id} value={m.name} className="font-black font-black">{m.name}</option>)}</select></td>
+                                                                            <td className="px-10 py-4 font-black font-black font-black font-black font-black"><select value={editForm.team} onChange={v => setEditForm({...editForm, team: v.target.value})} className="p-2 border rounded-xl w-full font-black outline-none bg-white font-black font-black font-black font-black font-black">{teams.map(m => <option key={m.id} value={m.name} className="font-black font-black">{m.name}</option>)}</select></td>
+                                                                            <td className="px-10 py-4 text-right flex justify-end gap-2 font-black font-black font-black font-black font-black font-black font-black"><button onClick={updateEmp} className="p-2 bg-blue-600 text-white rounded-lg font-black font-black font-black font-black font-black"><Icons.Check /></button><button onClick={() => setEditingId(null)} className="p-2 bg-gray-200 text-gray-600 rounded-lg font-black font-black font-black font-black font-black font-black"><Icons.X /></button></td>
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <td className="px-10 py-6 text-gray-800 font-black font-black font-black">{e.name}</td>
-                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black">{e.rank}</td>
-                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black">{e.team}</td>
-                                                                            <td className="px-10 py-6 text-right font-black font-black">
-                                                                                <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all font-black">
-                                                                                    <button onClick={() => { setEditingId(e.id); setEditForm({name: e.name, rank: e.rank, team: e.team}); }} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg font-black font-black"><div className="icon-box font-black font-black"><i data-lucide="edit-2" style={{width:16, height:16}}></i></div></button>
-                                                                                    <button onClick={() => handleDeleteDoc('employees', e.id)} className="p-2 text-gray-300 hover:text-red-500 font-black font-black"><div className="icon-box font-black font-black"><i data-lucide="trash-2" style={{width:16, height:16}}></i></div></button>
+                                                                            <td className="px-10 py-6 text-gray-800 font-black font-black font-black font-black font-black font-black font-black font-black font-black">{e.name}</td>
+                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black font-black font-black font-black font-black font-black font-black">{e.rank}</td>
+                                                                            <td className="px-10 py-6 text-gray-500 font-black font-black font-black font-black font-black font-black font-black font-black font-black">{e.team}</td>
+                                                                            <td className="px-10 py-6 text-right font-black font-black font-black font-black font-black font-black font-black font-black font-black">
+                                                                                <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all font-black font-black font-black font-black font-black font-black">
+                                                                                    <button onClick={() => { setEditingId(e.id); setEditForm({name: e.name, rank: e.rank, team: e.team}); }} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg transition-all font-black font-black font-black font-black font-black font-black"><Icons.Edit /></button>
+                                                                                    <button onClick={() => deleteData('employees', e.id)} className="p-2 text-gray-300 hover:text-red-500 transition-all font-black font-black font-black font-black font-black font-black"><Icons.Trash /></button>
                                                                                 </div>
                                                                             </td>
                                                                         </>
@@ -460,26 +474,30 @@
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-black text-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 font-black text-sm font-black font-black font-black font-black font-black font-black font-black">
+                                            {/* 마스터 정보 섹션 렌더링 */}
                                             {[
-                                                { title: '직급 및 직책', col: 'ranks', items: ranks, color: 'purple', icon: 'layers' },
-                                                { title: '팀 구성', col: 'teams', items: teams, color: 'blue', icon: 'users' },
-                                                { title: '프로젝트 정보', col: 'projects', items: projects, color: 'orange', icon: 'briefcase' },
-                                                { title: 'DX제안 및 사업개발 정보', col: 'research', items: research, color: 'emerald', icon: 'search' }
+                                                { title: '직급 및 직책', col: 'ranks', items: ranks, color: 'purple', setup: ['본부장', '팀장', '책임', '선임', '매니저'], btn: '표준 직급 자동 등록', val: inputRank, set: setInputRank },
+                                                { title: '팀 구성', col: 'teams', items: teams, color: 'blue', setup: ['본부장', '기획', 'PM', '디자인', '시스템'], btn: '2026년 1월 팀구성', val: inputTeam, set: setInputTeam },
+                                                { title: '프로젝트 정보', col: 'projects', items: projects, color: 'orange', val: inputPrj, set: setInputPrj },
+                                                { title: 'DX제안 및 연구개발', col: 'research', items: research, color: 'emerald', val: inputRes, set: setInputRes }
                                             ].map((m, idx) => (
-                                                <div key={idx} className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col min-w-0 font-black">
-                                                    <h3 className={`font-black text-xl mb-6 flex items-center gap-3 text-${m.color}-600 font-black font-black`}><div className="icon-box font-black font-black"><i data-lucide={m.icon}></i></div> {m.title}</h3>
-                                                    <form onSubmit={(e) => handleAddDoc(e, m.col)} className="flex gap-2 mb-8 items-stretch font-black font-black font-black">
-                                                        <input name="v" placeholder="새 항목 입력" className="flex-1 min-w-0 p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black" required />
-                                                        <button disabled={isActionLoading} className={`bg-${m.color}-600 text-white px-6 rounded-2xl shadow-xl hover:opacity-90 font-black text-xs`}>추가</button>
+                                                <div key={idx} className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col font-black font-black font-black">
+                                                    <div className="flex justify-between items-center mb-6 font-black font-black font-black font-black font-black font-black">
+                                                        <h3 className={`font-black text-xl text-${m.color}-600 font-black font-black font-black`}>{m.title}</h3>
+                                                        {m.btn && <button onClick={() => batchSetup(m.col, m.setup)} className={`text-[10px] bg-${m.color}-50 text-${m.color}-600 px-3 py-1.5 rounded-xl font-black font-black font-black`}>{m.btn}</button>}
+                                                    </div>
+                                                    <form onSubmit={(e) => addMaster(e, m.col, m.val, m.set)} className="flex gap-2 mb-6 font-black font-black font-black font-black font-black">
+                                                        <input value={m.val} onChange={e => m.set(e.target.value)} placeholder="새 항목 입력" className="flex-1 p-4 bg-gray-50 border-0 rounded-2xl outline-none shadow-inner font-black font-black font-black font-black font-black" required />
+                                                        <button className={`bg-${m.color}-600 text-white px-6 rounded-2xl font-black text-xs font-black font-black font-black`}>추가</button>
                                                     </form>
-                                                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-3 custom-scrollbar font-black">
+                                                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar font-black font-black font-black font-black font-black font-black font-black">
                                                         {m.items.map(item => (
-                                                            <div key={item.id} className={`flex justify-between items-center p-4 rounded-[20px] bg-gray-50 group border-2 font-black ${editingMaster?.id === item.id ? `border-${m.color}-400 bg-white` : 'border-transparent hover:border-gray-200'}`}>
+                                                            <div key={item.id} className={`flex justify-between items-center p-4 rounded-2xl border-2 transition-all font-black font-black font-black font-black font-black ${editingMaster?.id === item.id ? `border-${m.color}-400 bg-white font-black font-black font-black` : 'border-transparent bg-gray-50 font-black font-black'}`}>
                                                                 {editingMaster?.id === item.id ? (
-                                                                    <div className="flex gap-2 w-full font-black"><input value={masterValue} onChange={e => setMasterValue(e.target.value)} className="flex-1 p-1 border-b-2 outline-none font-black text-sm" /><button onClick={handleUpdateMaster} className="text-blue-600 font-black font-black"><div className="icon-box font-black font-black font-black"><i data-lucide="check" style={{width:18, height:18}}></i></div></button><button onClick={() => setEditingMaster(null)} className="text-gray-400 font-black font-black"><div className="icon-box font-black font-black font-black"><i data-lucide="x" style={{width:18, height:18}}></i></div></button></div>
+                                                                    <div className="flex gap-2 w-full font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black"><input value={masterValue} onChange={e => setMasterValue(e.target.value)} className="flex-1 p-1 border-b-2 outline-none font-black font-black font-black font-black font-black font-black font-black font-black" /><button onClick={updateMaster} className="text-blue-600 font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black"><Icons.Check /></button><button onClick={() => setEditingMaster(null)} className="text-gray-400 font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black"><Icons.X /></button></div>
                                                                 ) : (
-                                                                    <><span className="truncate mr-4 font-black font-black">{item.name}</span><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all font-black"><button onClick={() => { setEditingMaster({id:item.id, col:m.col}); setMasterValue(item.name); }} className="text-blue-400 font-black font-black font-black font-black"><div className="icon-box font-black font-black"><i data-lucide="edit-2" style={{width:16, height:16}}></i></div></button><button onClick={() => handleDeleteDoc(m.col, item.id)} className="text-gray-300 hover:text-red-500 font-black font-black font-black font-black"><div className="icon-box font-black font-black"><i data-lucide="trash-2" style={{width:16, height:16}}></i></div></button></div></>
+                                                                    <><span className="truncate mr-4 font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black">{item.name}</span><div className="flex gap-1 font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black"><button onClick={() => { setEditingMaster({id:item.id, col:m.col}); setMasterValue(item.name); }} className="p-1.5 text-blue-400 font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black"><Icons.Edit /></button><button onClick={() => deleteData(m.col, item.id)} className="p-1.5 text-red-300 font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black"><Icons.Trash /></button></div></>
                                                                 )}
                                                             </div>
                                                         ))}
@@ -492,10 +510,11 @@
                             )
                         )}
                     </main>
-                    <footer className="mt-20 py-16 border-t-2 border-gray-100 text-center text-gray-400 font-black tracking-widest text-xs uppercase font-black font-black">© 2026 DX Resource · Managed Service</footer>
+                    <footer className="mt-20 py-16 border-t-2 border-gray-100 text-center text-gray-400 font-black tracking-widest text-xs uppercase font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black font-black">© 2026 DX Resource · Managed Service</footer>
                 </div>
             );
         };
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
