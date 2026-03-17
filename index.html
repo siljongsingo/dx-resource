@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DX Div. Resource</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<!-- React & Tailwind -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- SheetJS for Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  body{background:#f3f4f6;margin:0;}
+  select,input,textarea{font-family:inherit;}
+  @keyframes fadeIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}
+  .popup-enter{animation:fadeIn 0.2s ease;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 0.8s linear infinite;display:inline-block;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ★★★ 여기에 Firebase 콘솔에서 복사한 firebaseConfig 를 붙여넣으세요 ★★★
+const firebaseConfig = {
+  apiKey:            "AIzaSyB0LfujVe5IG5Z8O0v9-ARReoiVA7Jh0MI",
+  authDomain:        "dx-resource.firebaseapp.com",
+  projectId:         "dx-resource",
+  storageBucket:     "dx-resource.firebasestorage.app",
+  messagingSenderId: "864855908479",
+  appId:             "1:864855908479:web:96c4aeb07aca6d0c50df4a",
+  measurementId:     "G-H1ZP8D6Z0Z"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ── 초기 데이터 ───────────────────────────────────────────── */
+const INIT_MEMBERS = [
+  { id:1,  name:"김지훈", team:"DX본부", rank:"본부장" },
+  { id:2,  name:"신민정", team:"기획",   rank:"팀장"  },
+  { id:3,  name:"이예주", team:"기획",   rank:"책임"  },
+  { id:4,  name:"김지홍", team:"기획",   rank:"선임"  },
+  { id:5,  name:"권가윤", team:"PM",     rank:"팀장"  },
+  { id:6,  name:"신민섭", team:"PM",     rank:"책임"  },
+  { id:7,  name:"최상욱", team:"PM",     rank:"매니저"},
+  { id:8,  name:"김민태", team:"시스템", rank:"매니저"},
+  { id:9,  name:"김영민", team:"디자인", rank:"팀장"  },
+  { id:10, name:"김정민", team:"디자인", rank:"선임"  },
+  { id:11, name:"박상언", team:"디자인", rank:"매니저"},
+];
+const INIT_PROJECTS = [
+  { id:1,  type:"상용",   code:"DS25R018", name:"별내 아르떼키즈파크 구축" },
+  { id:2,  type:"비상용", code:"DS26N004", name:"내부활동-LG" },
+  { id:3,  type:"비상용", code:"DS26N004", name:"내부활동-신정호키즈랜드" },
+  { id:4,  type:"비상용", code:"DS26N004", name:"내부활동-신세계스퀘어" },
+  { id:5,  type:"비상용", code:"DS26N004", name:"내부활동-더파크사이드" },
+  { id:6,  type:"비상용", code:"DS26N004", name:"내부활동-고성공룡" },
+  { id:7,  type:"비상용", code:"DS26N004", name:"내부활동-DX본부" },
+  { id:8,  type:"상용",   code:"DS250001", name:"롯데월드 부산 로리캐슬 운영" },
+  { id:9,  type:"비상용", code:"DS26N004", name:"내부활동-AI R&D" },
+];
+const PIN = "9943";
+
+/* ── Firebase 데이터 레이어 ────────────────────────────────── */
+const DB = {
+  getMembers:  async () => { const d=await db.collection("dx_config").doc("members").get();  return d.exists?d.data().data:null; },
+  getProjects: async () => { const d=await db.collection("dx_config").doc("projects").get(); return d.exists?d.data().data:null; },
+  getResources:async () => { const s=await db.collection("dx_resources").orderBy("weekStart","desc").get(); return s.docs.map(d=>d.data()); },
+  saveMembers: async (data) => db.collection("dx_config").doc("members").set({data}),
+  saveProjects:async (data) => db.collection("dx_config").doc("projects").set({data}),
+  saveResource:async (res)  => db.collection("dx_resources").doc(res.weekStart).set(res),
+};
+
+/* ── 유틸 ──────────────────────────────────────────────────── */
+const getFriday=(s)=>{const d=new Date(s);d.setDate(d.getDate()+(5-d.getDay()+7)%7);return d.toISOString().split("T")[0];};
+const fmt=(s)=>{if(!s)return"";const[y,m,d]=s.split("-");return`${y}.${m}.${d}`;};
+const nid=(arr)=>arr.length?Math.max(...arr.map(x=>x.id))+1:1;
+
+/* ── 공통 컴포넌트 ─────────────────────────────────────────── */
+function SuccessPopup({show,onClose}){
+  useEffect(()=>{if(show){const t=setTimeout(onClose,2000);return()=>clearTimeout(t);}},[show]);
+  if(!show)return null;
+  return(
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-3 popup-enter">
+        <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-3xl">✅</div>
+        <p className="text-gray-800 font-bold text-lg">입력이 완료되었습니다.</p>
+        <button onClick={onClose} className="text-xs text-gray-400 border border-gray-200 rounded-lg px-4 py-1.5">닫기</button>
+      </div>
+    </div>
+  );
+}
+
+function AuthGate({children}){
+  const [auth,setAuth]=useState(false);
+  const [pin,setPin]=useState(""); const [err,setErr]=useState(false);
+  const login=()=>{if(pin===PIN){setAuth(true);setErr(false);}else{setErr(true);setPin("");}};
+  if(!auth)return(
+    <div className="flex items-center justify-center py-16">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-80">
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-2">🔐</div>
+          <h2 className="font-bold text-gray-800 text-lg">접속 인증</h2>
+          <p className="text-sm text-gray-400 mt-1">접속 번호를 입력해주세요</p>
+        </div>
+        <input type="password" value={pin} onChange={e=>setPin(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&login()} placeholder="· · · ·" maxLength={6}
+          className={`w-full border-2 rounded-lg px-4 py-3 text-center text-2xl tracking-[0.5em] mb-2 outline-none ${err?"border-red-400 bg-red-50":"border-gray-200 focus:border-blue-400"}`}/>
+        {err&&<p className="text-red-500 text-xs text-center mb-3">접속 번호가 올바르지 않습니다.</p>}
+        <button onClick={login} className="w-full bg-blue-800 text-white rounded-lg py-2.5 font-semibold hover:bg-blue-900">접속</button>
+      </div>
+    </div>
+  );
+  return children(()=>setAuth(false));
+}
+
+/* ── 메인(투입현황) ────────────────────────────────────────── */
+function MainPage({members,projects,resources,onReload}){
+  const [aiText,setAiText]=useState("");
+  const [aiLoading,setAiLoading]=useState(false);
+
+  const sorted=[...resources].sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
+  const latest=sorted[0]; const prev=sorted[1];
+  const getProj=(pid)=>projects.find(p=>p.id===pid);
+  const getShort=(pid)=>{const p=getProj(pid);return p?p.name:`#${pid}`;};
+  const getCode=(pid)=>{const p=getProj(pid);return p?p.code:`#${pid}`;};
+  const teamsWithNotes=latest?.teamNotes?Object.entries(latest.teamNotes).filter(([,n])=>n?.trim()):[];
+
+  /* 인쇄 */
+  const handlePrint=()=>{
+    const rows=members.map(m=>{
+      const entry=latest.entries.find(e=>e.memberId===m.id);
+      const allocs=(entry?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
+      const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
+      const bc=total===100?"#1d4ed8":total>100?"#dc2626":"#ea580c";
+      const bb=total===100?"#eff6ff":total>100?"#fef2f2":"#fff7ed";
+      const cell=allocs.length===0?`<span style="color:#d1d5db;font-size:9px;">배정 내역 없음</span>`
+        :allocs.map(a=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span style="font-size:9px;color:#374151;min-width:110px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${getShort(a.projectId)}</span>
+          <div style="flex:1;background:#e5e7eb;border-radius:99px;height:5px;"><div style="background:#3b82f6;height:5px;border-radius:99px;width:${Math.min(Number(a.rate),100)}%;"></div></div>
+          <span style="font-size:9px;font-weight:700;color:#2563eb;min-width:28px;text-align:right;">${a.rate}%</span>
+          </div>`).join("");
+      return`<tr><td style="padding:5px 8px;font-weight:700;font-size:10px;white-space:nowrap;border-bottom:1px solid #f1f5f9;">${m.name}</td>
+        <td style="padding:5px 8px;font-size:9px;color:#6b7280;border-bottom:1px solid #f1f5f9;">${m.team}</td>
+        <td style="padding:5px 8px;font-size:9px;color:#9ca3af;border-bottom:1px solid #f1f5f9;">${m.rank}</td>
+        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;">${cell}</td>
+        <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #f1f5f9;">
+          <span style="background:${bb};color:${bc};border:1px solid ${bc}33;border-radius:99px;padding:2px 8px;font-size:9px;font-weight:700;">${total}%</span></td></tr>`;
+    }).join("");
+    const notes=teamsWithNotes.length>0?`<div style="margin-top:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;">
+      <div style="font-weight:700;font-size:9px;color:#92400e;margin-bottom:6px;">📌 팀별 특이사항</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">${teamsWithNotes.map(([t,n])=>`<div><span style="font-weight:600;font-size:9px;color:#1e3a5f;">${t} 팀</span><div style="font-size:9px;color:#374151;margin-top:1px;">${n}</div></div>`).join("")}</div></div>`:"";
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>DX Div. Resource</title>
+      <style>*{box-sizing:border-box;margin:0;padding:0;}html,body{width:210mm;}
+      body{font-family:-apple-system,'Malgun Gothic',sans-serif;padding:10mm;background:#fff;}
+      h2{font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:2px;}
+      .period{font-size:9px;color:#6b7280;margin-bottom:8px;}
+      table{width:100%;border-collapse:collapse;}
+      thead tr{background:#1e3a5f;}
+      thead th{color:#fff;font-size:9px;font-weight:600;padding:5px 8px;text-align:left;}
+      thead th:last-child{text-align:right;}
+      tbody tr:nth-child(even){background:#f8fafc;}
+      @media print{@page{margin:0;size:A4 portrait;}body{padding:10mm;}}</style>
+      </head><body>
+      <h2>🏢 DX Div. Resource &nbsp;주간 투입현황</h2>
+      <div class="period">📅 ${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)}&nbsp;&nbsp;|&nbsp;&nbsp;출력일: ${new Date().toLocaleDateString('ko-KR')}</div>
+      <table><thead><tr><th style="width:48px;">성명</th><th style="width:44px;">팀</th><th style="width:40px;">직책</th><th>투입 프로젝트 (투입률 높은 순)</th><th style="width:44px;">투입율</th></tr></thead>
+      <tbody>${rows}</tbody></table>${notes}
+      <script>setTimeout(()=>{window.print();},400);<\/script></body></html>`;
+    const w=window.open("","_blank","width=900,height=1100");
+    w.document.open();w.document.write(html);w.document.close();
+  };
+
+  /* 엑셀 내보내기 */
+  const handleExport=()=>{
+    if(!expStart||!expEnd)return alert("기간을 선택해주세요.");
+    setExporting(true);
+    const filtered=resources.filter(r=>r.weekStart>=expStart&&r.weekStart<=expEnd)
+      .sort((a,b)=>a.weekStart.localeCompare(b.weekStart));
+    if(filtered.length===0){setExporting(false);return alert("해당 기간에 데이터가 없습니다.");}
+
+    const rows=[];
+    filtered.forEach(r=>{
+      members.forEach(m=>{
+        const entry=r.entries.find(e=>e.memberId===m.id);
+        const allocs=entry?.allocations?.filter(a=>a.projectId!==""&&a.rate!=="");
+        if(allocs&&allocs.length>0){
+          allocs.forEach(a=>{
+            const p=projects.find(x=>x.id===a.projectId);
+            rows.push({
+              "주차 시작": fmt(r.weekStart),
+              "주차 종료": fmt(r.weekEnd),
+              "성명": m.name,
+              "팀": m.team,
+              "직책": m.rank,
+              "구분": p?.type||"",
+              "프로젝트 코드": p?.code||"",
+              "프로젝트명": p?.name||"",
+              "투입율(%)": Number(a.rate),
+            });
+          });
+        } else {
+          rows.push({
+            "주차 시작": fmt(r.weekStart),
+            "주차 종료": fmt(r.weekEnd),
+            "성명": m.name,
+            "팀": m.team,
+            "직책": m.rank,
+            "구분": "","프로젝트 코드": "","프로젝트명": "배정없음","투입율(%)": 0,
+          });
+        }
+      });
+      // 팀별 특이사항 시트용
+    });
+
+    // 특이사항 시트
+    const noteRows=[];
+    filtered.forEach(r=>{
+      if(r.teamNotes){
+        Object.entries(r.teamNotes).filter(([,n])=>n?.trim()).forEach(([team,note])=>{
+          noteRows.push({"주차 시작":fmt(r.weekStart),"주차 종료":fmt(r.weekEnd),"팀":team,"특이사항":note});
+        });
+      }
+    });
+
+    const wb=XLSX.utils.book_new();
+    const ws1=XLSX.utils.json_to_sheet(rows);
+    ws1["!cols"]=[{wch:12},{wch:12},{wch:10},{wch:10},{wch:10},{wch:8},{wch:14},{wch:24},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws1,"투입현황");
+    if(noteRows.length>0){
+      const ws2=XLSX.utils.json_to_sheet(noteRows);
+      ws2["!cols"]=[{wch:12},{wch:12},{wch:10},{wch:40}];
+      XLSX.utils.book_append_sheet(wb,ws2,"특이사항");
+    }
+    XLSX.writeFile(wb,`DX_Resource_${expStart}_${expEnd}.xlsx`);
+    setExporting(false);
+  };
+
+  /* AI 분석 */
+  const runAi=async()=>{
+    if(!latest)return;
+    setAiLoading(true);setAiText("");
+    const desc=(wd)=>{if(!wd)return"데이터 없음";return wd.entries.map(e=>{const m=members.find(x=>x.id===e.memberId);if(!m)return"";const al=e.allocations.map(a=>`${getCode(a.projectId)}:${getShort(a.projectId)}(${a.rate}%)`).join(", ");const tot=e.allocations.reduce((s,a)=>s+Number(a.rate),0);return`${m.name}(${m.team}/${m.rank}): ${al||"없음"} → 합계${tot}%`;}).filter(Boolean).join("\n");};
+    const prompt=`당신은 DX본부 리소스 현황 분석 어시스턴트입니다.\n【이번 주】${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)}\n${desc(latest)}\n${latest.teamNotes?"\n특이사항:\n"+Object.entries(latest.teamNotes).filter(([,n])=>n?.trim()).map(([t,n])=>`${t}: ${n}`).join("\n"):""}\n${prev?`【지난 주】${fmt(prev.weekStart)} ~ ${fmt(prev.weekEnd)}\n${desc(prev)}`:"【지난 주】데이터 없음"}\n① 이번 주 전체 투입 현황 요약 ② 지난 주 대비 변경된 사항 ③ 투입율 주의 인원 ④ 특이사항 요약(있는 경우만)`;
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+      const data=await res.json();
+      setAiText(data.content?.map(b=>b.text||"").join("")||"요약 생성 실패");
+    }catch{setAiText("AI 분석 중 오류가 발생했습니다.");}
+    setAiLoading(false);
+  };
+
+  if(!latest)return(
+    <div className="text-center py-24 text-gray-400">
+      <div className="text-5xl mb-3">📋</div>
+      <div className="text-sm">입력된 리소스 데이터가 없습니다.<br/>리소스 및 정보 입력 메뉴에서 데이터를 입력해주세요.</div>
+    </div>
+  );
+
+  return(
+    <div>
+      {/* 헤더 */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">📊 주간 투입현황</h1>
+          <p className="text-sm text-gray-500 mt-0.5">📅 {fmt(latest.weekStart)} ~ {fmt(latest.weekEnd)}</p>
+        </div>
+        <button onClick={handlePrint} className="self-start ml-auto bg-blue-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-900 flex items-center gap-1.5 shadow whitespace-nowrap">
+          🖨️ 인쇄 / PDF 저장
+        </button>
+      </div>
+
+      {/* 투입현황 테이블 - 데스크탑 */}
+      <div className="hidden md:block">
+        <div className="bg-blue-900 text-white rounded-t-xl px-6 py-2.5 grid grid-cols-12 gap-2 text-xs font-semibold">
+          <div className="col-span-2">성명</div>
+          <div className="col-span-2">팀</div>
+          <div className="col-span-1">직책</div>
+          <div className="col-span-6">투입 프로젝트 (투입률 높은 순)</div>
+          <div className="col-span-1 text-right">투입율</div>
+        </div>
+        <div className="bg-white rounded-b-xl shadow divide-y divide-gray-100 mb-4">
+          {members.map(m=>{
+            const entry=latest.entries.find(e=>e.memberId===m.id);
+            const allocs=(entry?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
+            const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
+            const bb=total===100?"bg-blue-100 text-blue-700 border border-blue-200":total>100?"bg-red-100 text-red-600 border border-red-200":total>0?"bg-orange-100 text-orange-600 border border-orange-200":"bg-gray-100 text-gray-400 border border-gray-200";
+            return(
+              <div key={m.id} className="grid grid-cols-12 gap-2 items-center px-6 py-4 hover:bg-blue-50 transition-colors">
+                <div className="col-span-2 font-bold text-gray-800 text-sm">{m.name}</div>
+                <div className="col-span-2 text-gray-500 text-sm">{m.team}</div>
+                <div className="col-span-1 text-gray-400 text-xs">{m.rank}</div>
+                <div className="col-span-6">
+                  {allocs.length===0?<span className="text-gray-300 text-xs">배정 내역 없음</span>:allocs.map((a,i)=>(
+                    <div key={i} className="mb-2 last:mb-0">
+                      <div className="flex justify-between items-center mb-0.5">
+                        <span className="text-xs text-gray-600 truncate max-w-xs">{getShort(a.projectId)}</span>
+                        <span className="text-xs font-bold text-blue-600 ml-2 whitespace-nowrap">{a.rate}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-blue-500" style={{width:`${Math.min(Number(a.rate),100)}%`}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${bb}`}>{total}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 투입현황 테이블 - 모바일 */}
+      <div className="md:hidden bg-white rounded-xl shadow divide-y divide-gray-100 mb-4">
+        {members.map(m=>{
+          const entry=latest.entries.find(e=>e.memberId===m.id);
+          const allocs=(entry?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
+          const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
+          const bb=total===100?"bg-blue-100 text-blue-700 border border-blue-200":total>100?"bg-red-100 text-red-600 border border-red-200":total>0?"bg-orange-100 text-orange-600 border border-orange-200":"bg-gray-100 text-gray-400 border border-gray-200";
+          return(
+            <div key={m.id} className="px-4 py-3">
+              {/* 인원 정보 + 합계 */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-gray-800 text-sm">{m.name}</span>
+                  <span className="text-xs text-gray-400">{m.team}</span>
+                  <span className="text-xs text-gray-300">{m.rank}</span>
+                </div>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${bb}`}>{total}%</span>
+              </div>
+              {/* 프로젝트 바 */}
+              <div className="pl-1">
+                {allocs.length===0
+                  ?<span className="text-gray-300 text-xs">배정 내역 없음</span>
+                  :allocs.map((a,i)=>(
+                    <div key={i} className="mb-2 last:mb-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs text-gray-600 truncate" style={{maxWidth:"75%"}}>{getShort(a.projectId)}</span>
+                        <span className="text-xs font-bold text-blue-600 ml-1 whitespace-nowrap">{a.rate}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full bg-blue-500" style={{width:`${Math.min(Number(a.rate),100)}%`}}/>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-4 text-xs text-gray-400 mb-4">
+        {[["bg-blue-500","100% 정상"],["bg-red-400","초과"],["bg-orange-400","미달"]].map(([c,l])=>(
+          <span key={l}><span className={`inline-block w-2.5 h-2.5 rounded-full ${c} mr-1`}></span>{l}</span>
+        ))}
+      </div>
+
+      {/* 특이사항 */}
+      {teamsWithNotes.length>0&&(
+        <div className="mb-4">
+          <h3 className="font-bold text-gray-700 text-sm mb-2">📌 팀별 특이사항</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {teamsWithNotes.map(([team,note])=>(
+              <div key={team} className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
+                <div className="font-semibold text-yellow-800 text-xs mb-1">{team} 팀</div>
+                <div className="text-sm text-gray-700 whitespace-pre-wrap">{note}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* AI 분석 */}
+      <div className="bg-white rounded-xl shadow p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-gray-700 text-sm">🤖 AI 변동사항 분석</h3>
+          <button onClick={runAi} disabled={aiLoading}
+            className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1">
+            {aiLoading?<span className="spin">⟳</span>:null} {aiLoading?"분석 중...":"분석 실행"}
+          </button>
+        </div>
+        {aiText?<div className="text-sm text-gray-700 leading-relaxed bg-indigo-50 rounded-lg p-3 whitespace-pre-wrap">{aiText}</div>
+          :<p className="text-xs text-gray-400">이번 주 투입 현황 및 지난 주 대비 변동사항을 AI가 분석합니다.</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ── 리소스 입력 탭 ─────────────────────────────────────────── */
+function ResourceTab({members,projects,resources,onSaveResource}){
+  const [weekStart,setWeekStart]=useState(""); const [weekEnd,setWeekEnd]=useState("");
+  const [selTeam,setSelTeam]=useState(""); const [entries,setEntries]=useState({});
+  const [teamNote,setTeamNote]=useState(""); const [warnPopup,setWarnPopup]=useState(null);
+  const [showSuccess,setShowSuccess]=useState(false); const [saving,setSaving]=useState(false);
+  const teams=[...new Set(members.map(m=>m.team))];
+  const teamMembers=members.filter(m=>m.team===selTeam);
+  const onDateChange=(s)=>{setWeekStart(s);setWeekEnd(s?getFriday(s):"");setSelTeam("");setEntries({});setTeamNote("");};
+  const onTeamChange=(team)=>{
+    setSelTeam(team);
+    const ex=resources.find(r=>r.weekStart===weekStart);
+    const init={};
+    members.filter(m=>m.team===team).forEach(m=>{
+      const e=ex?.entries.find(x=>x.memberId===m.id);
+      init[m.id]=e?.allocations?.length?e.allocations.map(a=>({...a})):[{projectId:"",rate:""}];
+    });
+    setEntries(init); setTeamNote(ex?.teamNotes?.[team]||"");
+  };
+  const addRow=(mid)=>setEntries(p=>({...p,[mid]:[...(p[mid]||[]),{projectId:"",rate:""}]}));
+  const removeRow=(mid,i)=>setEntries(p=>({...p,[mid]:p[mid].filter((_,j)=>j!==i)}));
+  const updateRow=(mid,i,f,v)=>setEntries(p=>({...p,[mid]:p[mid].map((r,j)=>j===i?{...r,[f]:v}:r)}));
+  const getTotal=(mid)=>(entries[mid]||[]).reduce((s,a)=>s+(Number(a.rate)||0),0);
+  const handleSave=()=>{
+    if(!weekStart)return alert("주간 시작일을 선택해주세요.");
+    if(!selTeam)return alert("팀을 선택해주세요.");
+    const warns=teamMembers.filter(m=>getTotal(m.id)!==100).map(m=>({memberId:m.id,name:m.name,total:getTotal(m.id)}));
+    if(warns.length){setWarnPopup(warns);return;}doSave();
+  };
+  const doSave=async()=>{
+    setSaving(true);
+    const newE=teamMembers.map(m=>({memberId:m.id,allocations:(entries[m.id]||[]).filter(a=>a.projectId!==""&&a.rate!=="").map(a=>({...a,projectId:Number(a.projectId)}))}));
+    const tIds=teamMembers.map(m=>m.id);
+    const ex=resources.find(r=>r.weekStart===weekStart);
+    let newRes;
+    if(ex){newRes={...ex,entries:[...ex.entries.filter(e=>!tIds.includes(e.memberId)),...newE],teamNotes:{...ex.teamNotes,[selTeam]:teamNote}};}
+    else{newRes={weekStart,weekEnd,entries:newE,teamNotes:{[selTeam]:teamNote}};}
+    await onSaveResource(newRes);
+    setSaving(false);setWarnPopup(null);setShowSuccess(true);
+  };
+  const sortedProjects=(type)=>{
+    const list=projects.filter(p=>p.type===type);
+    if(type==="비상용")return[...list.filter(p=>p.name==="내부활동-DX본부"),...list.filter(p=>p.name!=="내부활동-DX본부")];
+    return list;
+  };
+  return(
+    <div>
+      <SuccessPopup show={showSuccess} onClose={()=>setShowSuccess(false)}/>
+      {warnPopup&&(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-red-600 text-lg mb-2">⚠️ 투입율 확인 필요</h3>
+            <p className="text-sm text-gray-500 mb-4">아래 팀원의 투입율이 100%가 아닙니다.</p>
+            {warnPopup.map(w=>(
+              <div key={w.memberId} className={`flex justify-between items-center px-3 py-2 rounded-lg mb-1.5 ${w.total>100?"bg-red-50":"bg-orange-50"}`}>
+                <span className="text-sm font-semibold">{w.name}</span>
+                <span className={`text-sm font-bold ${w.total>100?"text-red-600":"text-orange-500"}`}>{w.total}% {w.total>100?"▲ 초과":"▼ 미달"}</span>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-5">
+              <button onClick={()=>setWarnPopup(null)} className="flex-1 bg-blue-700 text-white rounded-lg py-2 text-sm hover:bg-blue-800">✏️ 수정하기</button>
+              <button onClick={doSave} className="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm hover:bg-gray-200">그대로 저장</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div><label className="block text-xs font-semibold text-gray-500 mb-1">📅 시작일</label>
+            <input type="date" value={weekStart} onChange={e=>onDateChange(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+          <div><label className="block text-xs font-semibold text-gray-500 mb-1">📅 종료일 (금요일 자동)</label>
+            <input type="date" value={weekEnd} onChange={e=>setWeekEnd(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50"/></div>
+          <div><label className="block text-xs font-semibold text-gray-500 mb-1">👥 팀 선택</label>
+            <select value={selTeam} onChange={e=>onTeamChange(e.target.value)} disabled={!weekStart} className="w-full border rounded-lg px-3 py-2 text-sm disabled:opacity-50">
+              <option value="">팀 선택</option>
+              {teams.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+      {selTeam&&(
+        <div>
+          {teamMembers.map(m=>{
+            const rows=entries[m.id]||[]; const total=getTotal(m.id);
+            const tc=total===100?"text-green-600":total>100?"text-red-600":"text-orange-500";
+            const bg=total===100?"bg-green-50 border-green-200":total>100?"bg-red-50 border-red-200":"bg-white border-gray-200";
+            return(
+              <div key={m.id} className={`rounded-lg shadow border p-4 mb-3 ${bg}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-1">
+                  <div><span className="font-bold text-gray-800">{m.name}</span><span className="text-sm text-gray-400 ml-2">{m.team} · {m.rank}</span></div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${tc}`}>합계 {total}%</span>
+                    {total===100&&<span className="text-xs text-green-500 bg-green-100 px-2 py-0.5 rounded-full">✓ 정상</span>}
+                    {total>100&&<span className="text-xs text-red-500 bg-red-100 px-2 py-0.5 rounded-full">초과</span>}
+                    {total<100&&total>0&&<span className="text-xs text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">미달</span>}
+                  </div>
+                </div>
+                {rows.map((row,i)=>(
+                  <div key={i} className="flex flex-col sm:flex-row gap-2 mb-2">
+                    <select value={row.projectId} onChange={e=>updateRow(m.id,i,"projectId",e.target.value)} className="flex-1 border rounded-lg px-3 py-1.5 text-sm">
+                      <option value="">프로젝트 선택</option>
+                      {sortedProjects("상용").length>0&&<optgroup label="── 상용">{sortedProjects("상용").map(p=><option key={p.id} value={p.id}>[{p.code}] {p.name}</option>)}</optgroup>}
+                      {sortedProjects("비상용").length>0&&<optgroup label="── 비상용">{sortedProjects("비상용").map(p=><option key={p.id} value={p.id}>[{p.code}] {p.name}</option>)}</optgroup>}
+                    </select>
+                    <div className="flex items-center gap-1">
+                      <input type="number" value={row.rate} onChange={e=>updateRow(m.id,i,"rate",e.target.value)} placeholder="0" min="0" max="200" className="w-20 border rounded-lg px-3 py-1.5 text-sm text-center"/>
+                      <span className="text-sm text-gray-500">%</span>
+                      <button onClick={()=>removeRow(m.id,i)} className="text-gray-300 hover:text-red-500 text-xl px-1">×</button>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={()=>addRow(m.id)} className="text-blue-600 text-xs hover:underline mt-1">+ 항목 추가</button>
+              </div>
+            );
+          })}
+          <div className="bg-white rounded-lg shadow border border-yellow-200 p-4 mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              📌 {selTeam} 팀 특이사항 <span className="text-gray-400 font-normal text-xs">(없으면 현황표에 미표시)</span>
+            </label>
+            <textarea value={teamNote} onChange={e=>setTeamNote(e.target.value)} rows={3}
+              placeholder="이번 주 특이사항을 입력하세요..."
+              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-yellow-400"/>
+          </div>
+          <button onClick={handleSave} disabled={saving}
+            className="w-full bg-blue-800 text-white rounded-xl py-3 font-bold text-base hover:bg-blue-900 shadow-md disabled:opacity-60 flex items-center justify-center gap-2">
+            {saving?<><span className="spin">⟳</span> 저장 중...</>:"💾 리소스 저장"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── 인력 탭 ────────────────────────────────────────────────── */
+function MembersTab({members,onSaveMembers}){
+  const [form,setForm]=useState({name:"",team:"",rank:""}); const [edit,setEdit]=useState(null);
+  const [showSuccess,setShowSuccess]=useState(false); const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!form.name||!form.team||!form.rank)return alert("모든 필드를 입력해주세요.");
+    setSaving(true);
+    let next;
+    if(edit){next=members.map(m=>m.id===edit.id?{...m,...form}:m);setEdit(null);}
+    else next=[...members,{id:nid(members),...form}];
+    await onSaveMembers(next);
+    setForm({name:"",team:"",rank:""});setSaving(false);setShowSuccess(true);
+  };
+  const del=async(id)=>{if(confirm("삭제하시겠습니까?"))await onSaveMembers(members.filter(m=>m.id!==id));};
+  const startEdit=(m)=>{setEdit(m);setForm({name:m.name,team:m.team,rank:m.rank});};
+  return(
+    <div>
+      <SuccessPopup show={showSuccess} onClose={()=>setShowSuccess(false)}/>
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="text-xs font-semibold text-gray-500 mb-2">{edit?"✏️ 인력 수정":"➕ 인력 추가"}</div>
+        <div className="flex flex-col md:flex-row gap-2">
+          {[["name","이름"],["team","소속팀"],["rank","직급"]].map(([k,pl])=>(
+            <input key={k} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={pl} className="border rounded px-3 py-1.5 text-sm flex-1"/>
+          ))}
+          <div className="flex gap-2">
+            <button onClick={save} disabled={saving} className="bg-blue-700 text-white rounded px-4 py-1.5 text-sm hover:bg-blue-800 whitespace-nowrap disabled:opacity-60">
+              {saving?"저장 중...":edit?"수정":"추가"}
+            </button>
+            {edit&&<button onClick={()=>{setEdit(null);setForm({name:"",team:"",rank:""});}} className="bg-gray-200 text-gray-700 rounded px-4 py-1.5 text-sm">취소</button>}
+          </div>
+        </div>
+      </div>
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b"><tr>{["이름","소속팀","직급","관리"].map(h=><th key={h} className="px-4 py-2.5 text-left font-semibold text-gray-600">{h}</th>)}</tr></thead>
+          <tbody>
+            {members.map(m=>(
+              <tr key={m.id} className="border-t hover:bg-gray-50">
+                <td className="px-4 py-2 font-medium">{m.name}</td>
+                <td className="px-4 py-2 text-gray-500">{m.team}</td>
+                <td className="px-4 py-2 text-gray-500">{m.rank}</td>
+                <td className="px-4 py-2">
+                  <button onClick={()=>startEdit(m)} className="text-blue-600 text-xs hover:underline mr-3">수정</button>
+                  <button onClick={()=>del(m.id)} className="text-red-500 text-xs hover:underline">삭제</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── 프로젝트 탭 ─────────────────────────────────────────────── */
+function ProjectsTab({projects,onSaveProjects}){
+  const [form,setForm]=useState({type:"상용",code:"",name:""}); const [edit,setEdit]=useState(null);
+  const [showSuccess,setShowSuccess]=useState(false); const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!form.code||!form.name)return alert("코드와 프로젝트명을 입력해주세요.");
+    setSaving(true);
+    let next;
+    if(edit){next=projects.map(p=>p.id===edit.id?{...p,...form}:p);setEdit(null);}
+    else next=[...projects,{id:nid(projects),...form}];
+    await onSaveProjects(next);
+    setForm({type:"상용",code:"",name:""});setSaving(false);setShowSuccess(true);
+  };
+  const del=async(id)=>{if(confirm("삭제하시겠습니까?"))await onSaveProjects(projects.filter(p=>p.id!==id));};
+  const startEdit=(p)=>{setEdit(p);setForm({type:p.type,code:p.code,name:p.name});};
+  const commercial=projects.filter(p=>p.type==="상용");
+  const internal=projects.filter(p=>p.type==="비상용");
+  return(
+    <div>
+      <SuccessPopup show={showSuccess} onClose={()=>setShowSuccess(false)}/>
+      <div className="bg-white rounded-lg shadow p-4 mb-5">
+        <div className="text-xs font-semibold text-gray-500 mb-2">{edit?`✏️ 수정 (내부 ID #${edit.id})`:"➕ 프로젝트 추가"}</div>
+        <div className="flex flex-col md:flex-row gap-2">
+          <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="border rounded px-3 py-1.5 text-sm w-28"><option value="상용">상용</option><option value="비상용">비상용</option></select>
+          <input value={form.code} onChange={e=>setForm({...form,code:e.target.value})} placeholder="프로젝트 코드" className="border rounded px-3 py-1.5 text-sm w-36"/>
+          <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="프로젝트명" className="border rounded px-3 py-1.5 text-sm flex-1"/>
+          <div className="flex gap-2">
+            <button onClick={save} disabled={saving} className="bg-blue-700 text-white rounded px-4 py-1.5 text-sm hover:bg-blue-800 whitespace-nowrap disabled:opacity-60">
+              {saving?"저장 중...":edit?"수정":"추가"}
+            </button>
+            {edit&&<button onClick={()=>{setEdit(null);setForm({type:"상용",code:"",name:""});}} className="bg-gray-200 text-gray-700 rounded px-4 py-1.5 text-sm">취소</button>}
+          </div>
+        </div>
+        {edit&&<p className="text-xs text-indigo-500 mt-2">💡 코드/명칭 변경 시에도 내부 ID #{edit.id}로 기존 이력과 연동 유지됩니다.</p>}
+      </div>
+      {[["상용",commercial,"bg-blue-100 text-blue-700"],["비상용",internal,"bg-gray-100 text-gray-600"]].map(([label,list,cls])=>(
+        <div key={label} className="mb-5">
+          <h3 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-1.5"><span className={`px-2 py-0.5 rounded-full text-xs ${cls}`}>{label}</span>{list.length}건</h3>
+          <div className="bg-white rounded-lg shadow overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b"><tr>{["내부ID","구분","코드","프로젝트명","관리"].map(h=><th key={h} className="px-4 py-2.5 text-left font-semibold text-gray-600">{h}</th>)}</tr></thead>
+              <tbody>
+                {list.map(p=>(
+                  <tr key={p.id} className="border-t hover:bg-gray-50">
+                    <td className="px-4 py-2 text-gray-300 text-xs font-mono">#{p.id}</td>
+                    <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-xs ${cls}`}>{p.type}</span></td>
+                    <td className="px-4 py-2 font-mono text-xs text-gray-700">{p.code}</td>
+                    <td className="px-4 py-2 font-medium">{p.name}</td>
+                    <td className="px-4 py-2">
+                      <button onClick={()=>startEdit(p)} className="text-blue-600 text-xs hover:underline mr-3">수정</button>
+                      <button onClick={()=>del(p.id)} className="text-red-500 text-xs hover:underline">삭제</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── 엑셀 내보내기 탭 ─────────────────────────────────────────── */
+function ExcelTab({members,projects,resources}){
+  const [expStart,setExpStart]=useState("");
+  const [expEnd,setExpEnd]=useState("");
+  const [exporting,setExporting]=useState(false);
+
+  const getProj=(pid)=>projects.find(p=>p.id===pid);
+  const getShort=(pid)=>{const p=getProj(pid);return p?p.name:`#${pid}`;};
+
+  const weeks=[...resources].sort((a,b)=>a.weekStart.localeCompare(b.weekStart));
+
+  const handleExport=()=>{
+    if(!expStart||!expEnd)return alert("기간을 선택해주세요.");
+    if(expStart>expEnd)return alert("시작일이 종료일보다 늦습니다.");
+    setExporting(true);
+    const filtered=resources.filter(r=>r.weekStart>=expStart&&r.weekStart<=expEnd)
+      .sort((a,b)=>a.weekStart.localeCompare(b.weekStart));
+    if(filtered.length===0){setExporting(false);return alert("해당 기간에 데이터가 없습니다.");}
+
+    const rows=[];
+    filtered.forEach(r=>{
+      members.forEach(m=>{
+        const entry=r.entries.find(e=>e.memberId===m.id);
+        const allocs=entry?.allocations?.filter(a=>a.projectId!==""&&a.rate!=="");
+        if(allocs&&allocs.length>0){
+          allocs.forEach(a=>{
+            const p=projects.find(x=>x.id===a.projectId);
+            rows.push({
+              "주차 시작":fmt(r.weekStart),"주차 종료":fmt(r.weekEnd),
+              "성명":m.name,"팀":m.team,"직책":m.rank,
+              "구분":p?.type||"","프로젝트 코드":p?.code||"",
+              "프로젝트명":p?.name||"","투입율(%)":Number(a.rate),
+            });
+          });
+        } else {
+          rows.push({
+            "주차 시작":fmt(r.weekStart),"주차 종료":fmt(r.weekEnd),
+            "성명":m.name,"팀":m.team,"직책":m.rank,
+            "구분":"","프로젝트 코드":"","프로젝트명":"배정없음","투입율(%)":0,
+          });
+        }
+      });
+    });
+
+    const noteRows=[];
+    filtered.forEach(r=>{
+      if(r.teamNotes){
+        Object.entries(r.teamNotes).filter(([,n])=>n?.trim()).forEach(([team,note])=>{
+          noteRows.push({"주차 시작":fmt(r.weekStart),"주차 종료":fmt(r.weekEnd),"팀":team,"특이사항":note});
+        });
+      }
+    });
+
+    const wb=XLSX.utils.book_new();
+    const ws1=XLSX.utils.json_to_sheet(rows);
+    ws1["!cols"]=[{wch:12},{wch:12},{wch:10},{wch:10},{wch:10},{wch:8},{wch:14},{wch:26},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws1,"투입현황");
+    if(noteRows.length>0){
+      const ws2=XLSX.utils.json_to_sheet(noteRows);
+      ws2["!cols"]=[{wch:12},{wch:12},{wch:10},{wch:40}];
+      XLSX.utils.book_append_sheet(wb,ws2,"특이사항");
+    }
+    XLSX.writeFile(wb,`DX_Resource_${expStart}_${expEnd}.xlsx`);
+    setExporting(false);
+  };
+
+  return(
+    <div>
+      <div className="bg-white rounded-xl shadow p-5 mb-4">
+        <h3 className="font-bold text-gray-700 text-sm mb-4">📊 기간 선택</h3>
+        <div className="flex flex-col sm:flex-row gap-4 items-end mb-4">
+          <div className="flex-1">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">시작일</label>
+            <input type="date" value={expStart} onChange={e=>setExpStart(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm"/>
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">종료일</label>
+            <input type="date" value={expEnd} onChange={e=>setExpEnd(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm"/>
+          </div>
+          <button onClick={handleExport} disabled={exporting}
+            className="bg-green-700 text-white px-6 py-2 rounded-lg text-sm hover:bg-green-800 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap shadow font-semibold">
+            {exporting?<span className="spin">⟳</span>:"📥"} 엑셀 다운로드
+          </button>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 leading-relaxed">
+          <p>• 선택 기간의 모든 주차 데이터가 <strong className="text-gray-700">투입현황</strong> / <strong className="text-gray-700">특이사항</strong> 2개 시트로 저장됩니다.</p>
+          <p>• 파일명: <span className="font-mono text-gray-600">DX_Resource_시작일_종료일.xlsx</span></p>
+        </div>
+      </div>
+
+      {/* 저장된 주차 목록 */}
+      <div className="bg-white rounded-xl shadow p-5">
+        <h3 className="font-bold text-gray-700 text-sm mb-3">📋 저장된 주차 목록 <span className="text-gray-400 font-normal">({resources.length}개)</span></h3>
+        {resources.length===0
+          ?<p className="text-gray-300 text-sm text-center py-8">저장된 데이터가 없습니다.</p>
+          :<div className="divide-y divide-gray-100">
+            {weeks.map(r=>{
+              const totalEntries=r.entries.filter(e=>e.allocations?.length>0).length;
+              return(
+                <div key={r.weekStart} className="flex items-center justify-between py-2.5">
+                  <div>
+                    <span className="text-sm font-semibold text-gray-700">{fmt(r.weekStart)} ~ {fmt(r.weekEnd)}</span>
+                    <span className="text-xs text-gray-400 ml-2">입력 인원 {totalEntries}명</span>
+                  </div>
+                  <button onClick={()=>{setExpStart(r.weekStart);setExpEnd(r.weekEnd);}}
+                    className="text-xs text-blue-600 hover:underline border border-blue-200 rounded px-2 py-0.5">
+                    선택
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        }
+      </div>
+    </div>
+  );
+}
+
+/* ── 입력 페이지 ─────────────────────────────────────────────── */
+function InputPage({members,projects,resources,onSaveMembers,onSaveProjects,onSaveResource}){
+  const [tab,setTab]=useState("resource");
+  const tabs=[["resource","📝 리소스입력"],["members","👤 인력"],["projects","📁 프로젝트"],["excel","📥 엑셀내보내기"]];
+  return(
+    <AuthGate>
+      {(logout)=>(
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-bold text-gray-800">🛠️ 리소스 및 정보 입력</h1>
+            <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-3 py-1">로그아웃</button>
+          </div>
+          <div className="flex border-b border-gray-200 mb-4 gap-1">
+            {tabs.map(([k,l])=>(
+              <button key={k} onClick={()=>setTab(k)} className={`px-5 py-2 text-sm font-medium border-b-2 transition-all -mb-px ${tab===k?"border-blue-600 text-blue-700":"border-transparent text-gray-500 hover:text-gray-700"}`}>{l}</button>
+            ))}
+          </div>
+          {tab==="resource"&&<ResourceTab members={members} projects={projects} resources={resources} onSaveResource={onSaveResource}/>}
+          {tab==="members"&&<MembersTab members={members} onSaveMembers={onSaveMembers}/>}
+          {tab==="projects"&&<ProjectsTab projects={projects} onSaveProjects={onSaveProjects}/>}
+          {tab==="excel"&&<ExcelTab members={members} projects={projects} resources={resources}/>}
+        </div>
+      )}
+    </AuthGate>
+  );
+}
+
+/* ── 앱 루트 ─────────────────────────────────────────────────── */
+function App(){
+  const [page,setPage]=useState("main");
+  const [members,setMembers]=useState(INIT_MEMBERS);
+  const [projects,setProjects]=useState(INIT_PROJECTS);
+  const [resources,setResources]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+  const [menuOpen,setMenuOpen]=useState(false);
+
+  useEffect(()=>{
+    (async()=>{
+      try{const m=await DB.getMembers(); if(m)setMembers(m);}catch(e){console.error(e);}
+      try{const p=await DB.getProjects();if(p)setProjects(p);}catch(e){console.error(e);}
+      try{const r=await DB.getResources();setResources(r);}catch(e){console.error(e);}
+      setLoaded(true);
+    })();
+  },[]);
+
+  const saveMembers=async(d)=>{setMembers(d);await DB.saveMembers(d);};
+  const saveProjects=async(d)=>{setProjects(d);await DB.saveProjects(d);};
+  const saveResource=async(res)=>{
+    await DB.saveResource(res);
+    setResources(prev=>{
+      const exists=prev.find(r=>r.weekStart===res.weekStart);
+      return exists?prev.map(r=>r.weekStart===res.weekStart?res:r):[...prev,res];
+    });
+  };
+
+  const navItems=[["main","📊 투입현황"],["input","🛠️ 리소스 및 정보 입력"]];
+
+  if(!loaded)return(
+    <div className="flex items-center justify-center h-screen bg-gray-100">
+      <div className="text-center text-gray-400">
+        <div className="text-4xl spin mb-3 block">⟳</div>
+        <div className="text-sm">Firebase 데이터 불러오는 중...</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-blue-900 text-white shadow-lg sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="flex items-center justify-between py-3">
+            <div className="font-bold text-base tracking-tight whitespace-nowrap">🏢 DX Div. Resource</div>
+            <div className="hidden md:flex items-center gap-1">
+              {navItems.map(([k,l])=>(
+                <button key={k} onClick={()=>setPage(k)} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${page===k?"bg-blue-600 shadow":"hover:bg-blue-800"}`}>{l}</button>
+              ))}
+            </div>
+            <button className="md:hidden text-xl px-1" onClick={()=>setMenuOpen(!menuOpen)}>{menuOpen?"✕":"☰"}</button>
+          </div>
+        </div>
+        {menuOpen&&(
+          <div className="md:hidden border-t border-blue-800">
+            {navItems.map(([k,l])=>(
+              <button key={k} onClick={()=>{setPage(k);setMenuOpen(false);}} className={`block w-full text-left px-5 py-3 text-sm ${page===k?"bg-blue-700 font-semibold":"hover:bg-blue-800"}`}>{l}</button>
+            ))}
+          </div>
+        )}
+      </nav>
+      <div className="max-w-5xl mx-auto px-4 py-5">
+        {page==="main"&&<MainPage members={members} projects={projects} resources={resources} onReload={()=>{}}/>}
+        {page==="input"&&<InputPage members={members} projects={projects} resources={resources} onSaveMembers={saveMembers} onSaveProjects={saveProjects} onSaveResource={saveResource}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
