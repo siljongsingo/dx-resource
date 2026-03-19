@@ -247,18 +247,123 @@ function MainPage({members,projects,resources,onReload}){
     setExporting(false);
   };
 
-  /* AI 분석 */
-  const runAi=async()=>{
+  /* 자체 분석 엔진 */
+  const runAi=()=>{
     if(!latest)return;
     setAiLoading(true);setAiText("");
-    const desc=(wd)=>{if(!wd)return"데이터 없음";return wd.entries.map(e=>{const m=members.find(x=>x.id===e.memberId);if(!m)return"";const al=e.allocations.map(a=>`${getCode(a.projectId)}:${getShort(a.projectId)}(${a.rate}%)`).join(", ");const tot=e.allocations.reduce((s,a)=>s+Number(a.rate),0);return`${m.name}(${m.team}/${m.rank}): ${al||"없음"} → 합계${tot}%`;}).filter(Boolean).join("\n");};
-    const prompt=`당신은 DX본부 리소스 현황 분석 어시스턴트입니다.\n【이번 주】${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)}\n${desc(latest)}\n${latest.teamNotes?"\n특이사항:\n"+Object.entries(latest.teamNotes).filter(([,n])=>n?.trim()).map(([t,n])=>`${t}: ${n}`).join("\n"):""}\n${prev?`【지난 주】${fmt(prev.weekStart)} ~ ${fmt(prev.weekEnd)}\n${desc(prev)}`:"【지난 주】데이터 없음"}\n① 이번 주 전체 투입 현황 요약 ② 지난 주 대비 변경된 사항 ③ 투입율 주의 인원 ④ 특이사항 요약(있는 경우만)`;
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
-      const data=await res.json();
-      setAiText(data.content?.map(b=>b.text||"").join("")||"요약 생성 실패");
-    }catch{setAiText("AI 분석 중 오류가 발생했습니다.");}
-    setAiLoading(false);
+    setTimeout(()=>{
+      const lines=[];
+
+      // ① 이번 주 전체 요약
+      const totalMembers=members.length;
+      const inputMembers=latest.entries.filter(e=>e.allocations?.length>0).length;
+      const full=members.filter(m=>{
+        const e=latest.entries.find(x=>x.memberId===m.id);
+        const tot=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);
+        return tot===100;
+      }).length;
+      const over=members.filter(m=>{
+        const e=latest.entries.find(x=>x.memberId===m.id);
+        const tot=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);
+        return tot>100;
+      });
+      const under=members.filter(m=>{
+        const e=latest.entries.find(x=>x.memberId===m.id);
+        const tot=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);
+        return tot>0&&tot<100;
+      });
+      const noInput=members.filter(m=>{
+        const e=latest.entries.find(x=>x.memberId===m.id);
+        const tot=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);
+        return tot===0;
+      });
+
+      lines.push(`【 ${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)} 주간 리소스 현황 분석 】\n`);
+      lines.push(`① 이번 주 투입 현황 요약`);
+      lines.push(`   전체 ${totalMembers}명 중 ${inputMembers}명 입력 완료 / 정상(100%) ${full}명`);
+      if(noInput.length>0) lines.push(`   미입력 인원: ${noInput.map(m=>m.name).join(", ")}`);
+
+      // ② 지난 주 대비 변경사항
+      lines.push(`\n② 지난 주 대비 변경사항`);
+      if(!prev){
+        lines.push(`   첫 번째 입력 데이터입니다. 비교 데이터가 없습니다.`);
+      } else {
+        let changed=0;
+        const changeDetails=[];
+        members.forEach(m=>{
+          const curE=latest.entries.find(e=>e.memberId===m.id);
+          const preE=prev.entries.find(e=>e.memberId===m.id);
+          const curAllocs=(curE?.allocations||[]).filter(a=>a.projectId&&a.rate);
+          const preAllocs=(preE?.allocations||[]).filter(a=>a.projectId&&a.rate);
+          const curStr=curAllocs.map(a=>`${getShort(a.projectId)}:${a.rate}%`).sort().join("|");
+          const preStr=preAllocs.map(a=>`${getShort(a.projectId)}:${a.rate}%`).sort().join("|");
+          if(curStr!==preStr){
+            changed++;
+            const curTot=curAllocs.reduce((s,a)=>s+Number(a.rate),0);
+            const preTot=preAllocs.reduce((s,a)=>s+Number(a.rate),0);
+            if(curTot!==preTot){
+              changeDetails.push(`   • ${m.name}(${m.team}): 투입율 ${preTot}% → ${curTot}%`);
+            } else {
+              changeDetails.push(`   • ${m.name}(${m.team}): 프로젝트 배정 변경`);
+            }
+          }
+        });
+        if(changed===0){
+          lines.push(`   지난 주와 동일한 리소스 배정입니다.`);
+        } else {
+          lines.push(`   총 ${changed}명의 리소스 배정이 변경되었습니다.`);
+          changeDetails.forEach(d=>lines.push(d));
+        }
+      }
+
+      // ③ 주의 인원
+      lines.push(`\n③ 투입율 주의 인원`);
+      if(over.length===0&&under.length===0){
+        lines.push(`   모든 인원의 투입율이 정상(100%)입니다. ✅`);
+      } else {
+        over.forEach(m=>{
+          const e=latest.entries.find(x=>x.memberId===m.id);
+          const tot=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);
+          lines.push(`   ▲ 초과: ${m.name}(${m.team}) — ${tot}%`);
+        });
+        under.forEach(m=>{
+          const e=latest.entries.find(x=>x.memberId===m.id);
+          const tot=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);
+          lines.push(`   ▼ 미달: ${m.name}(${m.team}) — ${tot}%`);
+        });
+      }
+
+      // ④ 특이사항
+      const notes=latest.teamNotes?Object.entries(latest.teamNotes).filter(([,n])=>n?.trim()):[];
+      if(notes.length>0){
+        lines.push(`\n④ 팀별 특이사항`);
+        notes.forEach(([team,note])=>lines.push(`   [${team}] ${note}`));
+      }
+
+      // 프로젝트별 투입 현황
+      lines.push(`\n⑤ 프로젝트별 투입 현황`);
+      const projMap={};
+      latest.entries.forEach(e=>{
+        (e.allocations||[]).forEach(a=>{
+          if(!a.projectId||!a.rate)return;
+          const name=getShort(a.projectId);
+          if(!projMap[name])projMap[name]=0;
+          projMap[name]+=Number(a.rate);
+        });
+      });
+      const projEntries=Object.entries(projMap).sort((a,b)=>b[1]-a[1]);
+      if(projEntries.length===0){
+        lines.push(`   배정된 프로젝트가 없습니다.`);
+      } else {
+        projEntries.forEach(([name,total])=>{
+          const avg=(total/totalMembers).toFixed(1);
+          lines.push(`   • ${name}: 총 ${total}% (평균 ${avg}%/인)`);
+        });
+      }
+
+      setAiText(lines.join("\n"));
+      setAiLoading(false);
+    },600);
   };
 
   if(!latest)return(
