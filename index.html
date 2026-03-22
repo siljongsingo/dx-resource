@@ -51,43 +51,49 @@ const INIT_PROJECTS=[
   {id:9,type:"비상용",code:"DS26N004",name:"내부활동-AI R&D"},
 ];
 
-/* ── API (JSONP로 CORS 완전 우회) ──────────────────────────── */
-function jsonp(url){
-  return new Promise((resolve,reject)=>{
-    const cb="cb_"+Date.now();
+/* ── API (모든 요청 GET으로, localStorage 백업) ────────────── */
+const LS={
+  get:k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
+};
+
+function gasCall(params){
+  return new Promise((resolve)=>{
+    const cb="gcb_"+Date.now()+"_"+Math.random().toString(36).slice(2);
     const s=document.createElement("script");
     const timer=setTimeout(()=>{
       delete window[cb]; s.remove();
-      reject(new Error("timeout"));
-    },15000);
-    window[cb]=data=>{
-      clearTimeout(timer); delete window[cb]; s.remove();
-      resolve(data);
-    };
-    s.src=url+(url.includes("?")?"&":"?")+"callback="+cb;
-    s.onerror=()=>{clearTimeout(timer);delete window[cb];s.remove();reject(new Error("script error"));};
+      console.warn("GAS timeout"); resolve({ok:false,error:"timeout"});
+    },20000);
+    window[cb]=data=>{ clearTimeout(timer); delete window[cb]; s.remove(); resolve(data); };
+    const q=Object.entries({...params,callback:cb})
+      .map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(typeof v==="object"?JSON.stringify(v):v))
+      .join("&");
+    s.src=GAS+"?"+q;
+    s.onerror=()=>{ clearTimeout(timer); delete window[cb]; s.remove(); resolve({ok:false,error:"script error"}); };
     document.head.appendChild(s);
   });
 }
 
 async function gasGet(action){
-  return jsonp(GAS+"?action="+action);
+  return gasCall({action});
 }
 
 async function gasPost(payload){
-  // POST는 hidden form + iframe으로 전송 (CORS 없음)
-  // 저장 후 응답 필요 없으므로 fetch no-cors + 로컬 업데이트
-  try{
-    await fetch(GAS,{
-      method:"POST",
-      headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify(payload),
-      mode:"no-cors"
-    });
-  }catch(e){
-    console.warn("POST warning(no-cors):",e.message);
+  const {action,...rest}=payload;
+  // saveConfig
+  if(action==="saveConfig"){
+    return gasCall({action:"saveConfig", key:rest.key, value:JSON.stringify(rest.data)});
   }
-  return {ok:true};
+  // saveResource
+  if(action==="saveResource"){
+    return gasCall({action:"saveResource",
+      resource:rest.data,
+      members:rest.members,
+      projects:rest.projects
+    });
+  }
+  return {ok:false,error:"unknown"};
 }
 
 /* ── 유틸 ──────────────────────────────────────────────────── */
@@ -673,29 +679,45 @@ function App(){
 
   useEffect(()=>{
     (async()=>{
+      // localStorage 먼저 로드 (즉시 표시)
+      const lsM=LS.get("dx-members"); if(lsM)setMembers(lsM);
+      const lsP=LS.get("dx-projects"); if(lsP)setProjects(lsP);
+      const lsR=LS.get("dx-resources"); if(lsR)setResources(lsR);
+
+      // GAS에서 최신 데이터 로드 시도
       try{
         const [cfg,res]=await Promise.all([gasGet("getConfig"),gasGet("getResources")]);
-        if(cfg.ok){
-          if(cfg.data?.members)setMembers(cfg.data.members);
-          if(cfg.data?.projects)setProjects(cfg.data.projects);
+        if(cfg.ok && cfg.data){
+          if(cfg.data.members){setMembers(cfg.data.members);LS.set("dx-members",cfg.data.members);}
+          if(cfg.data.projects){setProjects(cfg.data.projects);LS.set("dx-projects",cfg.data.projects);}
           setConnected(true);
         }
-        if(res.ok)setResources(res.data||[]);
+        if(res.ok && res.data){
+          setResources(res.data);
+          LS.set("dx-resources",res.data);
+        }
       }catch(e){
-        console.error(e);setConnErr(true);
+        console.warn("GAS load failed, using localStorage:",e.message);
+        if(!lsM&&!lsP&&!lsR) setConnErr(true);
       }
       setLoaded(true);
     })();
   },[]);
 
-  const saveMembers=async d=>{setMembers(d);await gasPost({action:"saveConfig",key:"members",data:d});};
-  const saveProjects=async d=>{setProjects(d);await gasPost({action:"saveConfig",key:"projects",data:d});};
+  const saveMembers=async d=>{
+    setMembers(d); LS.set("dx-members",d);
+    await gasPost({action:"saveConfig",key:"members",data:d});
+  };
+  const saveProjects=async d=>{
+    setProjects(d); LS.set("dx-projects",d);
+    await gasPost({action:"saveConfig",key:"projects",data:d});
+  };
   const saveResource=async res=>{
+    const newR=resources.find(r=>r.weekStart===res.weekStart)
+      ?resources.map(r=>r.weekStart===res.weekStart?res:r)
+      :[...resources,res];
+    setResources(newR); LS.set("dx-resources",newR);
     await gasPost({action:"saveResource",data:res,members,projects});
-    setResources(prev=>{
-      const ex=prev.find(r=>r.weekStart===res.weekStart);
-      return ex?prev.map(r=>r.weekStart===res.weekStart?res:r):[...prev,res];
-    });
   };
 
   const NAV=[["main","📊 투입현황"],["input","🛠️ 리소스 및 정보 입력"]];
