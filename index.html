@@ -70,7 +70,7 @@ const API = {
   getResources: async () => API.get("getResources"),
   saveMembers:  async (data) => API.post({ action:"saveConfig", key:"members",  data }),
   saveProjects: async (data) => API.post({ action:"saveConfig", key:"projects", data }),
-  saveResource: async (data) => API.post({ action:"saveResource", data }),
+  saveResource: async (data, members, projects) => API.post({ action:"saveResource", data, members, projects }),
 };
 
 const getFriday=(s)=>{const d=new Date(s);d.setDate(d.getDate()+(5-d.getDay()+7)%7);return d.toISOString().split("T")[0];};
@@ -672,7 +672,7 @@ function ExcelTab({members,projects,resources,sheetUrl}){
 /* ── 입력 페이지 ─────────────────────────────────────────────── */
 function InputPage({members,projects,resources,onSaveMembers,onSaveProjects,onSaveResource}){
   const [tab,setTab]=useState("resource");
-  const tabs=[["resource","📝 리소스입력"],["members","👤 인력"],["projects","📁 프로젝트"],["excel","📥 엑셀내보내기"]];
+  const tabs=[["resource","📝 리소스입력"],["members","👤 인력"],["projects","📁 프로젝트"],["excel","📋 구글시트이동","https://docs.google.com/spreadsheets/d/1C597_LE-jvm7fs8phNwX7-tY1a9dE8NbmOpGPuOXCPw/edit?usp=sharing"]];
   return(
     <AuthGate>
       {(logout)=>(
@@ -682,8 +682,13 @@ function InputPage({members,projects,resources,onSaveMembers,onSaveProjects,onSa
             <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-3 py-1">로그아웃</button>
           </div>
           <div className="flex border-b border-gray-200 mb-4 gap-1 overflow-x-auto">
-            {tabs.map(([k,l])=>(
-              <button key={k} onClick={()=>setTab(k)} className={"px-4 py-2 text-sm font-medium border-b-2 transition-all -mb-px whitespace-nowrap "+(tab===k?"border-blue-600 text-blue-700":"border-transparent text-gray-500 hover:text-gray-700")}>{l}</button>
+            {tabs.map(([k,l,url])=>(
+              url
+                ? <a key={k} href={url} target="_blank" rel="noopener noreferrer"
+                    className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap">
+                    {l}
+                  </a>
+                : <button key={k} onClick={()=>setTab(k)} className={"px-4 py-2 text-sm font-medium border-b-2 transition-all -mb-px whitespace-nowrap "+(tab===k?"border-blue-600 text-blue-700":"border-transparent text-gray-500 hover:text-gray-700")}>{l}</button>
             ))}
           </div>
           {tab==="resource"&&<ResourceTab members={members} projects={projects} resources={resources} onSaveResource={onSaveResource}/>}
@@ -730,7 +735,7 @@ function App(){
   const saveMembers=async(d)=>{setMembers(d);await API.saveMembers(d);};
   const saveProjects=async(d)=>{setProjects(d);await API.saveProjects(d);};
   const saveResource=async(res)=>{
-    await API.saveResource(res);
+    await API.saveResource(res, members, projects);
     setResources(prev=>{
       const exists=prev.find(r=>r.weekStart===res.weekStart);
       return exists?prev.map(r=>r.weekStart===res.weekStart?res:r):[...prev,res];
