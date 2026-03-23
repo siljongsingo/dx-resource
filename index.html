@@ -440,21 +440,19 @@ function ResourceTab({members,projects,resources,onSave}){
             </select>
           </div>
         </div>
-        {/* 덮어쓰기 / 신규 안내 */}
-        {wS && team && (()=>{
-          const ex=resources.find(r=>r.weekStart===wS);
-          const hasTeam=ex&&ex.entries&&ex.entries.some(e=>{
-            const m=members.find(x=>x.id===e.memberId);
-            return m&&m.team===team&&e.allocations&&e.allocations.length>0;
-          });
-          return hasTeam
+        {/* 덮어쓰기 / 신규 안내 — 주차 기준 */}
+        {wS && (()=>{
+          const ex = resources.find(r=>r.weekStart===wS);
+          return ex
             ? <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <span className="text-amber-500 text-base">✏️</span>
-                <span className="text-xs text-amber-700 font-medium">이미 입력된 주차입니다. 저장하면 구글 시트에 <strong>덮어쓰기</strong> 됩니다.</span>
+                <span className="text-amber-500">✏️</span>
+                <span className="text-xs text-amber-700 font-medium">
+                  이미 입력된 주차입니다. 저장 시 해당 주차 전체 데이터를 <strong>덮어씁니다.</strong>
+                </span>
               </div>
             : <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                <span className="text-blue-400 text-base">🆕</span>
-                <span className="text-xs text-blue-700 font-medium">신규 입력 주차입니다. 저장하면 구글 시트에 새로 추가됩니다.</span>
+                <span className="text-blue-400">🆕</span>
+                <span className="text-xs text-blue-700 font-medium">신규 주차입니다. 저장 시 구글 시트에 새로 추가됩니다.</span>
               </div>;
         })()}
       </div>
