@@ -781,11 +781,10 @@ function App(){
             <div className="hidden md:flex items-center gap-2">
               {connected&&(
                 <div className="flex items-center gap-2">
-                  <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                  <span className="flex items-center gap-1.5 bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">
                     <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse inline-block"></span>
-                    구글 시트 연동됨
-                  </a>
+                    구글시트연동
+                  </span>
                   <button onClick={handleSync} disabled={syncing}
                     className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap disabled:opacity-50">
                     {syncing?<span className="spin">⟳</span>:"🔄"} {syncing?"동기화 중...":"데이터 동기화"}
@@ -812,7 +811,6 @@ function App(){
             ))}
             {connected&&(
               <>
-                <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer" className="block w-full text-left px-5 py-3 text-sm text-green-300 hover:bg-blue-800">📋 구글 시트 열기</a>
                 <button onClick={handleSync} disabled={syncing} className="block w-full text-left px-5 py-3 text-sm text-blue-200 hover:bg-blue-800 disabled:opacity-50">{syncing?"🔄 동기화 중...":"🔄 데이터 동기화"}</button>
               </>
             )}
