@@ -691,33 +691,48 @@ function App(){
   const [connErr,setConnErr]=useState(false);
   const [connected,setConnected]=useState(false);
   const [menuOpen,setMenuOpen]=useState(false);
+  const [syncing,setSyncing]=useState(false);
+  const [syncMsg,setSyncMsg]=useState("");
+
+  const loadData=async(showErr)=>{
+    const lsM=LS.get("dx-members");  if(lsM)setMembers(lsM);
+    const lsP=LS.get("dx-projects"); if(lsP)setProjects(lsP);
+    const lsR=LS.get("dx-resources");if(lsR)setResources(lsR);
+    try{
+      const [cfg,res]=await Promise.all([gasGet("getConfig"),gasGet("getResources")]);
+      if(cfg.ok&&cfg.data){
+        if(cfg.data.members) {setMembers(cfg.data.members);  LS.set("dx-members",cfg.data.members);}
+        if(cfg.data.projects){setProjects(cfg.data.projects);LS.set("dx-projects",cfg.data.projects);}
+        setConnected(true);
+      }
+      if(res.ok&&res.data){
+        setResources(res.data);
+        LS.set("dx-resources",res.data);
+      }
+    }catch(e){
+      console.warn("GAS load failed:",e.message);
+      if(showErr&&!lsM&&!lsP&&!lsR)setConnErr(true);
+    }
+  };
 
   useEffect(()=>{
-    (async()=>{
-      // localStorage 먼저 로드 (즉시 표시)
-      const lsM=LS.get("dx-members"); if(lsM)setMembers(lsM);
-      const lsP=LS.get("dx-projects"); if(lsP)setProjects(lsP);
-      const lsR=LS.get("dx-resources"); if(lsR)setResources(lsR);
-
-      // GAS에서 최신 데이터 로드 시도
-      try{
-        const [cfg,res]=await Promise.all([gasGet("getConfig"),gasGet("getResources")]);
-        if(cfg.ok && cfg.data){
-          if(cfg.data.members){setMembers(cfg.data.members);LS.set("dx-members",cfg.data.members);}
-          if(cfg.data.projects){setProjects(cfg.data.projects);LS.set("dx-projects",cfg.data.projects);}
-          setConnected(true);
-        }
-        if(res.ok && res.data){
-          setResources(res.data);
-          LS.set("dx-resources",res.data);
-        }
-      }catch(e){
-        console.warn("GAS load failed, using localStorage:",e.message);
-        if(!lsM&&!lsP&&!lsR) setConnErr(true);
-      }
-      setLoaded(true);
-    })();
+    (async()=>{await loadData(true);setLoaded(true);})();
   },[]);
+
+  const handleSync=async()=>{
+    setSyncing(true); setSyncMsg("");
+    try{
+      // 중복 정리
+      const clean=await gasGet("cleanupSheets");
+      // 최신 데이터 로드
+      await loadData(false);
+      setSyncMsg(clean.cleaned>0?`✅ 동기화 완료 (중복 ${clean.cleaned}건 정리됨)`:"✅ 동기화 완료 (중복 없음)");
+    }catch(e){
+      setSyncMsg("⚠️ 동기화 실패: "+e.message);
+    }
+    setSyncing(false);
+    setTimeout(()=>setSyncMsg(""),4000);
+  };
 
   const saveMembers=async d=>{
     setMembers(d); LS.set("dx-members",d);
@@ -765,11 +780,17 @@ function App(){
             <div className="font-bold text-base whitespace-nowrap">🏢 DX Div. Resource</div>
             <div className="hidden md:flex items-center gap-2">
               {connected&&(
-                <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse inline-block"></span>
-                  구글 시트 연동됨
-                </a>
+                <div className="flex items-center gap-2">
+                  <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-500 text-white text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse inline-block"></span>
+                    구글 시트 연동됨
+                  </a>
+                  <button onClick={handleSync} disabled={syncing}
+                    className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap disabled:opacity-50">
+                    {syncing?<span className="spin">⟳</span>:"🔄"} {syncing?"동기화 중...":"데이터 동기화"}
+                  </button>
+                </div>
               )}
               <div className="flex items-center gap-1">
                 {NAV.map(([k,l])=>(
@@ -779,13 +800,22 @@ function App(){
             </div>
             <button className="md:hidden text-xl px-1" onClick={()=>setMenuOpen(!menuOpen)}>{menuOpen?"✕":"☰"}</button>
           </div>
+          {/* 동기화 메시지 */}
+          {syncMsg&&(
+            <div className="bg-blue-800 text-center text-xs py-1.5 text-green-200">{syncMsg}</div>
+          )}
         </div>
         {menuOpen&&(
           <div className="md:hidden border-t border-blue-800">
             {NAV.map(([k,l])=>(
               <button key={k} onClick={()=>{setPage(k);setMenuOpen(false);}} className={"block w-full text-left px-5 py-3 text-sm "+(page===k?"bg-blue-700 font-semibold":"hover:bg-blue-800")}>{l}</button>
             ))}
-            {connected&&<a href={SHEET_LINK} target="_blank" rel="noopener noreferrer" className="block w-full text-left px-5 py-3 text-sm text-green-300 hover:bg-blue-800">📋 구글 시트 열기</a>}
+            {connected&&(
+              <>
+                <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer" className="block w-full text-left px-5 py-3 text-sm text-green-300 hover:bg-blue-800">📋 구글 시트 열기</a>
+                <button onClick={handleSync} disabled={syncing} className="block w-full text-left px-5 py-3 text-sm text-blue-200 hover:bg-blue-800 disabled:opacity-50">{syncing?"🔄 동기화 중...":"🔄 데이터 동기화"}</button>
+              </>
+            )}
           </div>
         )}
       </nav>
