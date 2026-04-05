@@ -4,146 +4,113 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>DX Div. Resource</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net"/>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
 <style>
-  /* ── dstrict-html CSS Variable Color System ── */
-  /* Mode A: Browser Dashboard / 기본: 라이트 모드 */
-  :root {
-    /* Background */
-    --bg-base:      #F4F6FA;
-    --bg-sub:       #FFFFFF;
-    --bg-card:      #FFFFFF;
-    --bg-card-sub:  #F8F9FD;
-    --bg-input:     #F0F3F9;
-    --bg-hover:     #EEF1F8;
-    /* Border */
-    --border-base:  rgba(0,0,0,0.07);
-    --border-md:    rgba(0,0,0,0.11);
-    --border-lg:    rgba(0,0,0,0.16);
-    /* Primary — d'strict Blue */
-    --primary:      #2563EB;
-    --primary-hov:  #1D4ED8;
-    --primary-lt:   rgba(37,99,235,0.08);
-    --primary-bd:   rgba(37,99,235,0.20);
-    /* Semantic */
-    --success:      #00A876;  --success-lt: rgba(0,168,118,0.08);  --success-bd: rgba(0,168,118,0.20);
-    --warning:      #D97706;  --warning-lt: rgba(217,119,6,0.08);  --warning-bd: rgba(217,119,6,0.20);
-    --danger:       #DC2626;  --danger-lt:  rgba(220,38,38,0.08);  --danger-bd:  rgba(220,38,38,0.20);
-    --info:         #0284C7;  --info-lt:    rgba(2,132,199,0.08);  --info-bd:    rgba(2,132,199,0.20);
-    /* Text */
-    --text-1: #0F172A;
-    --text-2: rgba(15,23,42,0.62);
-    --text-3: rgba(15,23,42,0.38);
-    --text-4: rgba(15,23,42,0.22);
-    /* Shadow */
-    --shadow: 0 2px 12px rgba(0,0,0,0.08);
-    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
-  }
-  [data-theme="dark"] {
-    --bg-base:      #0C1220;
-    --bg-sub:       #111928;
-    --bg-card:      #18243A;
-    --bg-card-sub:  #1E2D47;
-    --bg-input:     #1A2540;
-    --bg-hover:     #1F2F4A;
-    --border-base:  rgba(255,255,255,0.07);
-    --border-md:    rgba(255,255,255,0.12);
-    --border-lg:    rgba(255,255,255,0.18);
-    --primary:      #3D7BFF;  --primary-hov: #2D6BEF;
-    --primary-lt:   rgba(61,123,255,0.12); --primary-bd: rgba(61,123,255,0.25);
-    --success:      #00C48C;  --success-lt: rgba(0,196,140,0.10);  --success-bd: rgba(0,196,140,0.22);
-    --warning:      #FFA940;  --warning-lt: rgba(255,169,64,0.10); --warning-bd: rgba(255,169,64,0.22);
-    --danger:       #FF4D4F;  --danger-lt:  rgba(255,77,79,0.10);  --danger-bd:  rgba(255,77,79,0.22);
-    --info:         #36BFFF;  --info-lt:    rgba(54,191,255,0.10); --info-bd:    rgba(54,191,255,0.22);
-    --text-1: #F0F4FF;
-    --text-2: rgba(240,244,255,0.65);
-    --text-3: rgba(240,244,255,0.38);
-    --text-4: rgba(240,244,255,0.20);
-    --shadow: 0 2px 12px rgba(0,0,0,0.35);
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{
-    background:var(--bg-base);color:var(--text-1);
-    font-family:'Pretendard Variable',Pretendard,-apple-system,sans-serif;
-    font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;
-    transition:background .25s,color .25s;
-  }
-  select,input,textarea{font-family:inherit;color:var(--text-1);}
-  ::placeholder{color:var(--text-4);}
-
-  /* ── 카드 ── */
-  .ds-card{background:var(--bg-card);border:1px solid var(--border-base);border-radius:var(--radius-lg);box-shadow:var(--shadow);}
-  .ds-card-sub{background:var(--bg-card-sub);border:1px solid var(--border-base);border-radius:var(--radius-md);}
-
-  /* ── 입력 ── */
-  .ds-input{background:var(--bg-input);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:8px 12px;color:var(--text-1);outline:none;width:100%;transition:border-color .2s;font-size:13px;}
-  .ds-input:focus{border-color:var(--primary);}
-  .ds-select{background:var(--bg-input);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:8px 12px;color:var(--text-1);outline:none;width:100%;font-size:13px;cursor:pointer;}
-  .ds-select option{background:var(--bg-card);}
-  .ds-select:disabled{opacity:.4;cursor:not-allowed;}
-  .ds-textarea{background:var(--bg-input);border:1px solid var(--border-md);border-radius:var(--radius-sm);padding:10px 12px;color:var(--text-1);outline:none;width:100%;resize:none;font-size:13px;}
-  .ds-textarea:focus{border-color:var(--warning);}
-
-  /* ── 버튼 ── */
-  .ds-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit;}
-  .ds-btn-primary{background:var(--primary);color:#fff;}
-  .ds-btn-primary:hover{background:var(--primary-hov);}
-  .ds-btn-primary:disabled{opacity:.4;cursor:not-allowed;}
-  .ds-btn-ghost{background:var(--bg-card-sub);color:var(--text-2);border:1px solid var(--border-md);}
-  .ds-btn-ghost:hover{background:var(--bg-hover);}
-  .ds-btn-success{background:var(--success);color:#fff;}
-  .ds-btn-danger{background:var(--danger-lt);color:var(--danger);border:1px solid var(--danger-bd);}
-  .ds-btn-lg{padding:12px 24px;font-size:14px;border-radius:var(--radius-md);}
-
-  /* ── 뱃지 ── */
-  .ds-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;}
-  .ds-badge-primary{background:var(--primary-lt);color:var(--primary);border:1px solid var(--primary-bd);}
-  .ds-badge-success{background:var(--success-lt);color:var(--success);border:1px solid var(--success-bd);}
-  .ds-badge-warning{background:var(--warning-lt);color:var(--warning);border:1px solid var(--warning-bd);}
-  .ds-badge-danger{background:var(--danger-lt);color:var(--danger);border:1px solid var(--danger-bd);}
-  .ds-badge-dim{background:var(--border-base);color:var(--text-3);border:1px solid var(--border-md);}
-
-  /* ── 탭 ── */
-  .ds-tabs{display:flex;border-bottom:1px solid var(--border-base);gap:0;overflow-x:auto;}
-  .ds-tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--text-3);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;background:none;border-left:none;border-right:none;border-top:none;transition:all .15s;font-family:inherit;margin-bottom:-1px;}
-  .ds-tab:hover{color:var(--text-2);}
-  .ds-tab.active{color:var(--primary);border-bottom-color:var(--primary);}
-  .ds-tab-link{padding:10px 18px;font-size:13px;font-weight:500;color:var(--text-3);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-block;}
-  .ds-tab-link:hover{color:var(--text-2);}
-
-  /* ── 테이블 ── */
-  .ds-table{width:100%;border-collapse:collapse;}
-  .ds-table th{padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-3);text-align:left;border-bottom:1px solid var(--border-base);text-transform:uppercase;letter-spacing:.05em;background:var(--bg-card-sub);white-space:nowrap;}
-  .ds-table td{padding:10px 14px;font-size:13px;color:var(--text-2);border-bottom:1px solid var(--border-base);}
-  .ds-table tr:last-child td{border-bottom:none;}
-  .ds-table tr:hover td{background:var(--bg-hover);}
-
-  /* ── 프로그레스 ── */
-  .ds-progress{background:var(--border-md);border-radius:99px;height:5px;overflow:hidden;}
-  .ds-progress-fill{height:100%;border-radius:99px;background:var(--primary);transition:width .3s;}
-
-  /* ── 알림 ── */
-  .ds-alert{padding:10px 14px;border-radius:var(--radius-sm);font-size:12px;display:flex;align-items:flex-start;gap:8px;}
-  .ds-alert-warning{background:var(--warning-lt);border:1px solid var(--warning-bd);color:var(--warning);}
-  .ds-alert-info{background:var(--primary-lt);border:1px solid var(--primary-bd);color:var(--primary);}
-  .ds-alert-success{background:var(--success-lt);border:1px solid var(--success-bd);color:var(--success);}
-  .ds-alert-danger{background:var(--danger-lt);border:1px solid var(--danger-bd);color:var(--danger);}
-
-  /* ── 다크/라이트 토글 ── */
-  .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--border-md);background:var(--bg-card-sub);color:var(--text-2);cursor:pointer;font-family:inherit;transition:all .15s;}
-  .theme-toggle:hover{background:var(--bg-hover);}
-
-  @keyframes fadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
-  .popup-enter{animation:fadeIn .2s ease;}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .spin{animation:spin .8s linear infinite;display:inline-block;}
-  ::-webkit-scrollbar{width:4px;height:4px;}
-  ::-webkit-scrollbar-track{background:transparent;}
-  ::-webkit-scrollbar-thumb{background:var(--border-lg);border-radius:99px;}
+/* ── dstrict-html Design System · Mode A (Dashboard) ── */
+:root {
+  --bg:       #F4F6FA;
+  --bg-sub:   #FFFFFF;
+  --bg-card:  #FFFFFF;
+  --bg-sub2:  #F0F3F9;
+  --bg-input: #EEF1F8;
+  --bd:       rgba(0,0,0,0.08);
+  --bd-md:    rgba(0,0,0,0.13);
+  --primary:      #2563EB;
+  --primary-h:    #1D4ED8;
+  --primary-lt:   rgba(37,99,235,0.09);
+  --primary-bd:   rgba(37,99,235,0.22);
+  --success:      #00A876;
+  --success-lt:   rgba(0,168,118,0.09);
+  --success-bd:   rgba(0,168,118,0.22);
+  --warning:      #D97706;
+  --warning-lt:   rgba(217,119,6,0.09);
+  --warning-bd:   rgba(217,119,6,0.22);
+  --danger:       #DC2626;
+  --danger-lt:    rgba(220,38,38,0.09);
+  --danger-bd:    rgba(220,38,38,0.22);
+  --t1: #0F172A;
+  --t2: rgba(15,23,42,0.62);
+  --t3: rgba(15,23,42,0.38);
+  --t4: rgba(15,23,42,0.20);
+  --shadow: 0 1px 8px rgba(0,0,0,0.07);
+  --r-sm: 7px; --r-md: 10px; --r-lg: 14px;
+}
+[data-theme="dark"] {
+  --bg:       #0C1220;
+  --bg-sub:   #111928;
+  --bg-card:  #18243A;
+  --bg-sub2:  #1E2D47;
+  --bg-input: #1A2540;
+  --bd:       rgba(255,255,255,0.07);
+  --bd-md:    rgba(255,255,255,0.13);
+  --primary:      #3D7BFF;
+  --primary-h:    #2D6BEF;
+  --primary-lt:   rgba(61,123,255,0.13);
+  --primary-bd:   rgba(61,123,255,0.26);
+  --success:      #00C48C;
+  --success-lt:   rgba(0,196,140,0.11);
+  --success-bd:   rgba(0,196,140,0.24);
+  --warning:      #FFA940;
+  --warning-lt:   rgba(255,169,64,0.11);
+  --warning-bd:   rgba(255,169,64,0.24);
+  --danger:       #FF4D4F;
+  --danger-lt:    rgba(255,77,79,0.11);
+  --danger-bd:    rgba(255,77,79,0.24);
+  --t1: #F0F4FF;
+  --t2: rgba(240,244,255,0.65);
+  --t3: rgba(240,244,255,0.38);
+  --t4: rgba(240,244,255,0.20);
+  --shadow: 0 2px 14px rgba(0,0,0,0.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--t1);font-family:'Pretendard Variable',Pretendard,-apple-system,sans-serif;font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+select,input,textarea,button{font-family:inherit;}
+::placeholder{color:var(--t4);}
+.card{background:var(--bg-card);border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:var(--shadow);}
+.inp{background:var(--bg-input);border:1px solid var(--bd-md);border-radius:var(--r-sm);padding:8px 12px;color:var(--t1);outline:none;width:100%;font-size:13px;transition:border-color .2s;}
+.inp:focus{border-color:var(--primary);}
+select.inp{cursor:pointer;}
+select.inp option{background:var(--bg-card);}
+select.inp:disabled{opacity:.4;cursor:not-allowed;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r-sm);font-size:13px;font-weight:600;border:none;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.btn-p{background:var(--primary);color:#fff;}.btn-p:hover{background:var(--primary-h);}.btn-p:disabled{opacity:.4;cursor:not-allowed;}
+.btn-g{background:var(--bg-sub2);color:var(--t2);border:1px solid var(--bd-md);}.btn-g:hover{background:var(--bg-input);}
+.btn-d{background:var(--danger-lt);color:var(--danger);border:1px solid var(--danger-bd);}
+.btn-lg{padding:12px 24px;font-size:14px;border-radius:var(--r-md);}
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;}
+.bdg-p{background:var(--primary-lt);color:var(--primary);border:1px solid var(--primary-bd);}
+.bdg-s{background:var(--success-lt);color:var(--success);border:1px solid var(--success-bd);}
+.bdg-w{background:var(--warning-lt);color:var(--warning);border:1px solid var(--warning-bd);}
+.bdg-d{background:var(--danger-lt);color:var(--danger);border:1px solid var(--danger-bd);}
+.bdg-dim{background:var(--bd);color:var(--t3);border:1px solid var(--bd-md);}
+.progress{background:var(--bd-md);border-radius:99px;height:5px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:99px;background:var(--primary);transition:width .3s;}
+.alert{padding:10px 14px;border-radius:var(--r-sm);font-size:12px;display:flex;align-items:flex-start;gap:8px;}
+.alert-w{background:var(--warning-lt);border:1px solid var(--warning-bd);color:var(--warning);}
+.alert-i{background:var(--primary-lt);border:1px solid var(--primary-bd);color:var(--primary);}
+.alert-s{background:var(--success-lt);border:1px solid var(--success-bd);color:var(--success);}
+.tabs{display:flex;border-bottom:1px solid var(--bd);overflow-x:auto;}
+.tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--t3);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;margin-bottom:-1px;transition:all .15s;}
+.tab:hover{color:var(--t2);}
+.tab.on{color:var(--primary);border-bottom-color:var(--primary);}
+.tab-a{padding:10px 18px;font-size:13px;color:var(--t3);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-block;}
+.tab-a:hover{color:var(--t2);}
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{padding:10px 14px;font-size:11px;font-weight:600;color:var(--t3);text-align:left;border-bottom:1px solid var(--bd);text-transform:uppercase;letter-spacing:.05em;background:var(--bg-sub2);white-space:nowrap;}
+.tbl td{padding:10px 14px;font-size:13px;color:var(--t2);border-bottom:1px solid var(--bd);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:var(--bg-input);}
+.lbl{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
+@keyframes fadeIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.pop{animation:fadeIn .2s ease;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .8s linear infinite;display:inline-block;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--bd-md);border-radius:99px;}
 </style>
 </head>
 <body>
@@ -180,66 +147,50 @@ const INIT_PROJECTS=[
   {id:9,type:"비상용",code:"DS26N004",name:"내부활동-AI R&D"},
 ];
 
-/* ── API (모든 요청 GET으로, localStorage 백업) ────────────── */
+/* ── localStorage 백업 ── */
 const LS={
   get:k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}},
   set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}},
 };
 
+/* ── GAS API (JSONP) ── */
 function gasCall(params){
-  return new Promise((resolve)=>{
+  return new Promise(resolve=>{
     const cb="gcb_"+Date.now()+"_"+Math.random().toString(36).slice(2);
     const s=document.createElement("script");
-    const timer=setTimeout(()=>{
-      delete window[cb]; s.remove();
-      console.warn("GAS timeout"); resolve({ok:false,error:"timeout"});
-    },20000);
-    window[cb]=data=>{ clearTimeout(timer); delete window[cb]; s.remove(); resolve(data); };
-    const q=Object.entries({...params,callback:cb})
-      .map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(typeof v==="object"?JSON.stringify(v):v))
-      .join("&");
+    const timer=setTimeout(()=>{delete window[cb];s.remove();resolve({ok:false,error:"timeout"});},20000);
+    window[cb]=data=>{clearTimeout(timer);delete window[cb];s.remove();resolve(data);};
+    const q=Object.entries({...params,callback:cb}).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(typeof v==="object"?JSON.stringify(v):v)).join("&");
     s.src=GAS+"?"+q;
-    s.onerror=()=>{ clearTimeout(timer); delete window[cb]; s.remove(); resolve({ok:false,error:"script error"}); };
+    s.onerror=()=>{clearTimeout(timer);delete window[cb];s.remove();resolve({ok:false,error:"script error"});};
     document.head.appendChild(s);
   });
 }
-
-async function gasGet(action){
-  return gasCall({action});
-}
-
-async function gasPost(payload){
+const gasGet=action=>gasCall({action});
+const gasPost=payload=>{
   const {action,...rest}=payload;
-  // saveConfig
-  if(action==="saveConfig"){
-    return gasCall({action:"saveConfig", key:rest.key, value:JSON.stringify(rest.data)});
-  }
-  // saveResource
-  if(action==="saveResource"){
-    return gasCall({action:"saveResource",
-      resource:rest.data,
-      members:rest.members,
-      projects:rest.projects
-    });
-  }
-  return {ok:false,error:"unknown"};
-}
+  if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
+  if(action==="saveResource") return gasCall({action,resource:rest.data,members:rest.members,projects:rest.projects});
+  return Promise.resolve({ok:false});
+};
 
-/* ── 유틸 ──────────────────────────────────────────────────── */
+/* ── 유틸 ── */
 const getFriday=s=>{const d=new Date(s);d.setDate(d.getDate()+(5-d.getDay()+7)%7);return d.toISOString().split("T")[0];};
 const fmt=s=>{if(!s)return"";const[y,m,d]=s.split("-");return`${y}.${m}.${d}`;};
 const nid=arr=>arr.length?Math.max(...arr.map(x=>x.id))+1:1;
 
-/* ── 공통 컴포넌트 ─────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   공통 컴포넌트
+════════════════════════════════════════════ */
 function Toast({show,onClose}){
   useEffect(()=>{if(show){const t=setTimeout(onClose,2000);return()=>clearTimeout(t);}},[show]);
   if(!show)return null;
   return(
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-3 popup-enter">
-        <div className="text-5xl">✅</div>
-        <p className="font-bold text-gray-800 text-lg">입력이 완료되었습니다.</p>
-        <button onClick={onClose} className="text-xs text-gray-400 border rounded-lg px-4 py-1.5">닫기</button>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}>
+      <div className="card pop" style={{padding:"32px 40px",display:"flex",flexDirection:"column",alignItems:"center",gap:12,minWidth:260}}>
+        <div style={{width:48,height:48,borderRadius:"50%",background:"var(--success-lt)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,border:"1px solid var(--success-bd)"}}>✅</div>
+        <p style={{fontWeight:700,fontSize:15,color:"var(--t1)"}}>입력이 완료되었습니다.</p>
+        <button className="btn btn-g" style={{fontSize:11}} onClick={onClose}>닫기</button>
       </div>
     </div>
   );
@@ -251,80 +202,97 @@ function AuthGate({children}){
   const [err,setErr]=useState(false);
   const login=()=>{if(pin===PIN){setOk(true);}else{setErr(true);setPin("");}};
   if(!ok)return(
-    <div className="flex items-center justify-center py-16">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-80">
-        <div className="text-center mb-6">
-          <div className="text-4xl mb-2">🔐</div>
-          <h2 className="font-bold text-gray-800 text-lg">접속 인증</h2>
-          <p className="text-sm text-gray-400 mt-1">접속 번호를 입력해주세요</p>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"64px 16px"}}>
+      <div className="card" style={{padding:36,width:300}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:34,marginBottom:8}}>🔐</div>
+          <h2 style={{fontSize:16,fontWeight:700,color:"var(--t1)"}}>접속 인증</h2>
+          <p style={{fontSize:12,color:"var(--t3)",marginTop:4}}>접속 번호를 입력해주세요</p>
         </div>
-        <input type="password" value={pin} onChange={e=>setPin(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&login()} placeholder="· · · ·" maxLength={6}
-          className={`w-full border-2 rounded-lg px-4 py-3 text-center text-2xl tracking-[0.5em] mb-2 outline-none ${err?"border-red-400 bg-red-50":"border-gray-200 focus:border-blue-400"}`}/>
-        {err&&<p className="text-red-500 text-xs text-center mb-3">접속 번호가 올바르지 않습니다.</p>}
-        <button onClick={login} className="w-full bg-blue-800 text-white rounded-lg py-2.5 font-semibold hover:bg-blue-900">접속</button>
+        <input type="password" value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()}
+          placeholder="· · · ·" maxLength={6}
+          className="inp" style={{textAlign:"center",fontSize:22,letterSpacing:"0.5em",marginBottom:8,borderColor:err?"var(--danger)":""}}/>
+        {err&&<p style={{color:"var(--danger)",fontSize:11,textAlign:"center",marginBottom:8}}>접속 번호가 올바르지 않습니다.</p>}
+        <button className="btn btn-p btn-lg" style={{width:"100%",justifyContent:"center",marginTop:8}} onClick={login}>접속</button>
       </div>
     </div>
   );
   return children(()=>setOk(false));
 }
 
-/* ── 메인 페이지 ───────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   메인 페이지 (투입현황)
+════════════════════════════════════════════ */
 function MainPage({members,projects,resources}){
   const [analysis,setAnalysis]=useState("");
   const [analyzing,setAnalyzing]=useState(false);
-
   const sorted=[...resources].sort((a,b)=>b.weekStart.localeCompare(a.weekStart));
   const latest=sorted[0],prev=sorted[1];
   const gp=pid=>projects.find(p=>p.id===Number(pid));
   const gname=pid=>{const p=gp(pid);return p?p.name:`#${pid}`;};
   const notes=latest?.teamNotes?Object.entries(latest.teamNotes).filter(([,n])=>n?.trim()):[];
 
-  /* 인쇄 */
-  const print=()=>{
+  /* ── 인쇄 ── */
+  const handlePrint=()=>{
+    const today=new Date();
+    const mmdd=String(today.getMonth()+1).padStart(2,"0")+String(today.getDate()).padStart(2,"0");
     const rows=members.map(m=>{
       const e=latest.entries.find(x=>x.memberId===m.id);
       const al=(e?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
       const tot=al.reduce((s,a)=>s+Number(a.rate),0);
-      const bc=tot===100?"#1d4ed8":tot>100?"#dc2626":"#ea580c";
-      const bb=tot===100?"#eff6ff":tot>100?"#fef2f2":"#fff7ed";
-      const cell=al.length===0?`<span style="color:#d1d5db;font-size:9px;">배정 내역 없음</span>`
+      const bc=tot===100?"#2563EB":tot>100?"#DC2626":"#D97706";
+      const bb=tot===100?"#EFF6FF":tot>100?"#FEF2F2":"#FFFBEB";
+      const cell=al.length===0?`<span style="color:#ccc;font-size:9px;">배정 내역 없음</span>`
         :al.map(a=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
           <span style="font-size:9px;color:#374151;min-width:110px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${gname(a.projectId)}</span>
-          <div style="flex:1;background:#e5e7eb;border-radius:99px;height:5px;"><div style="background:#3b82f6;height:5px;border-radius:99px;width:${Math.min(Number(a.rate),100)}%;"></div></div>
-          <span style="font-size:9px;font-weight:700;color:#2563eb;min-width:28px;text-align:right;">${a.rate}%</span></div>`).join("");
-      return`<tr><td style="padding:5px 8px;font-weight:700;font-size:10px;border-bottom:1px solid #f1f5f9;white-space:nowrap;">${m.name}</td>
+          <table cellpadding="0" cellspacing="0" style="flex:1;border-collapse:collapse;"><tr>
+            <td style="background:#3b82f6;height:5px;width:${Math.min(Number(a.rate),100)}%;font-size:0;"></td>
+            <td style="background:#e5e7eb;height:5px;width:${100-Math.min(Number(a.rate),100)}%;font-size:0;"></td>
+          </tr></table>
+          <span style="font-size:9px;font-weight:700;color:#2563EB;min-width:28px;text-align:right;">${a.rate}%</span></div>`).join("");
+      return`<tr>
+        <td style="padding:5px 8px;font-weight:700;font-size:10px;border-bottom:1px solid #f1f5f9;white-space:nowrap;">${m.name}</td>
         <td style="padding:5px 8px;font-size:9px;color:#6b7280;border-bottom:1px solid #f1f5f9;">${m.team}</td>
         <td style="padding:5px 8px;font-size:9px;color:#9ca3af;border-bottom:1px solid #f1f5f9;">${m.rank}</td>
         <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;">${cell}</td>
-        <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #f1f5f9;"><span style="background:${bb};color:${bc};border:1px solid ${bc}33;border-radius:99px;padding:2px 8px;font-size:9px;font-weight:700;">${tot}%</span></td></tr>`;
+        <td style="padding:5px 8px;text-align:right;border-bottom:1px solid #f1f5f9;">
+          <span style="background:${bb};color:${bc};border:1px solid ${bc}33;border-radius:99px;padding:2px 8px;font-size:9px;font-weight:700;">${tot}%</span>
+        </td></tr>`;
     }).join("");
-    const noteHtml=notes.length?`<div style="margin-top:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;"><div style="font-weight:700;font-size:9px;color:#92400e;margin-bottom:6px;">📌 팀별 특이사항</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${notes.map(([t,n])=>`<div><span style="font-weight:600;font-size:9px;color:#1e3a5f;">${t} 팀</span><div style="font-size:9px;color:#374151;margin-top:1px;">${n}</div></div>`).join("")}</div></div>`:"";
-    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>DX Div. Resource</title>
-      <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:-apple-system,'Malgun Gothic',sans-serif;padding:10mm;}
+    const noteHtml=notes.length===0?"":
+      `<div style="margin-top:10px;padding:8px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;">
+        <div style="font-weight:700;font-size:9px;color:#92400E;margin-bottom:6px;">📌 팀별 특이사항</div>
+        <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+          ${notes.map(([t,n])=>`<tr style="vertical-align:top;"><td style="font-weight:700;font-size:9px;color:#1e3a5f;white-space:nowrap;padding:2px 10px 2px 0;width:60px;">${t} 팀</td><td style="font-size:9px;color:#374151;padding:2px 0;line-height:1.5;">${n.replace(/\n/g,"<br/>")}</td></tr>`).join("")}
+        </table></div>`;
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>DX Div. Resource_${mmdd}</title>
+      <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:-apple-system,'Malgun Gothic',sans-serif;padding:8mm;}
       h2{font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:2px;}.p{font-size:9px;color:#6b7280;margin-bottom:8px;}
-      table{width:100%;border-collapse:collapse;}thead tr{background:#1e3a5f;}thead th{color:#fff;font-size:9px;font-weight:600;padding:5px 8px;text-align:left;}
+      table.main{width:100%;border-collapse:collapse;}
+      thead tr{background:#1e3a5f;}thead th{color:#fff;font-size:9px;font-weight:600;padding:5px 8px;text-align:left;}
       thead th:last-child{text-align:right;}tbody tr:nth-child(even){background:#f8fafc;}
-      @media print{@page{margin:0;size:A4 portrait;}body{padding:10mm;}}</style></head>
-      <body><h2>🏢 DX Div. Resource 주간 투입현황</h2>
-      <div class="p">📅 ${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)} &nbsp;|&nbsp; 출력일: ${new Date().toLocaleDateString("ko-KR")}</div>
-      <table><thead><tr><th style="width:48px;">성명</th><th style="width:44px;">팀</th><th style="width:40px;">직책</th><th>투입 프로젝트 (투입률 높은 순)</th><th style="width:44px;">투입율</th></tr></thead>
+      @media print{@page{margin:0;size:A4 portrait;}body{padding:8mm;}}</style>
+      </head><body>
+      <h2>🏢 DX Div. Resource 주간 투입현황</h2>
+      <div class="p">📅 ${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)} | 출력일: ${today.toLocaleDateString("ko-KR")}</div>
+      <table class="main"><thead><tr><th style="width:46px;">성명</th><th style="width:42px;">팀</th><th style="width:38px;">직책</th><th>투입 프로젝트 (투입률 높은 순)</th><th style="width:42px;text-align:right;">투입율</th></tr></thead>
       <tbody>${rows}</tbody></table>${noteHtml}
-      <script>setTimeout(function(){window.print();},400);<\/script></body></html>`;
+      <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script></body></html>`;
     const w=window.open("","_blank","width=900,height=1100");
     w.document.open();w.document.write(html);w.document.close();
   };
 
-  /* 분석 */
+  /* ── 현황 분석 ── */
   const analyze=()=>{
     if(!latest)return;
     setAnalyzing(true);setAnalysis("");
     setTimeout(()=>{
       const N=members.length;
-      const full=members.filter(m=>{const e=latest.entries.find(x=>x.memberId===m.id);const t=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);return t===100;}).length;
-      const over=members.filter(m=>{const e=latest.entries.find(x=>x.memberId===m.id);const t=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);return t>100;});
-      const under=members.filter(m=>{const e=latest.entries.find(x=>x.memberId===m.id);const t=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);return t>0&&t<100;});
-      const none=members.filter(m=>{const e=latest.entries.find(x=>x.memberId===m.id);const t=(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);return t===0;});
+      const getT=m=>{const e=latest.entries.find(x=>x.memberId===m.id);return(e?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);};
+      const full=members.filter(m=>getT(m)===100).length;
+      const over=members.filter(m=>getT(m)>100);
+      const under=members.filter(m=>getT(m)>0&&getT(m)<100);
+      const none=members.filter(m=>getT(m)===0);
       const lines=[];
       lines.push(`【 ${fmt(latest.weekStart)} ~ ${fmt(latest.weekEnd)} 주간 분석 】\n`);
       lines.push(`① 이번 주 요약`);
@@ -342,161 +310,132 @@ function MainPage({members,projects,resources}){
           if(cs!==ps){cnt++;const ct=(ce?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);const pt=(pe?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);details.push(`   • ${m.name}(${m.team}): ${pt}% → ${ct}%`);}
         });
         if(cnt===0)lines.push("   변경 없음");
-        else{lines.push(`   ${cnt}명 변경`);details.forEach(d=>lines.push(d));}
+        else{lines.push(`   총 ${cnt}명 변경`);details.forEach(d=>lines.push(d));}
       }
       lines.push(`\n③ 주의 인원`);
-      if(!over.length&&!under.length){lines.push("   전원 정상 ✅");}
+      if(!over.length&&!under.length)lines.push("   전원 정상 ✅");
       else{
-        over.forEach(m=>{const t=(latest.entries.find(x=>x.memberId===m.id)?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);lines.push(`   ▲ 초과: ${m.name}(${m.team}) ${t}%`);});
-        under.forEach(m=>{const t=(latest.entries.find(x=>x.memberId===m.id)?.allocations||[]).reduce((s,a)=>s+Number(a.rate),0);lines.push(`   ▼ 미달: ${m.name}(${m.team}) ${t}%`);});
+        over.forEach(m=>lines.push(`   ▲ 초과: ${m.name}(${m.team}) ${getT(m)}%`));
+        under.forEach(m=>lines.push(`   ▼ 미달: ${m.name}(${m.team}) ${getT(m)}%`));
       }
       if(notes.length){lines.push(`\n④ 특이사항`);notes.forEach(([t,n])=>lines.push(`   [${t}] ${n}`));}
-      lines.push(`\n⑤ 프로젝트별 현황`);
       const pm={};
       latest.entries.forEach(e=>(e.allocations||[]).forEach(a=>{if(!a.projectId||!a.rate)return;const n=gname(a.projectId);pm[n]=(pm[n]||0)+Number(a.rate);}));
-      const pe=Object.entries(pm).sort((a,b)=>b[1]-a[1]);
-      if(!pe.length)lines.push("   배정 없음");
-      else pe.forEach(([n,t])=>lines.push(`   • ${n}: 총 ${t}% (평균 ${(t/N).toFixed(1)}%)`));
+      lines.push(`\n⑤ 프로젝트별 현황`);
+      Object.entries(pm).sort((a,b)=>b[1]-a[1]).forEach(([n,t])=>lines.push(`   • ${n}: 총 ${t}% (평균 ${(t/N).toFixed(1)}%)`));
       setAnalysis(lines.join("\n"));setAnalyzing(false);
     },400);
   };
 
   if(!latest)return(
-    <div className="text-center py-24 text-gray-400">
-      <div className="text-5xl mb-3">📋</div>
-      <p className="text-sm">입력된 데이터가 없습니다.<br/>리소스 및 정보 입력 메뉴에서 데이터를 입력해주세요.</p>
+    <div style={{textAlign:"center",padding:"80px 16px",color:"var(--t3)"}}>
+      <div style={{fontSize:48,marginBottom:12}}>📋</div>
+      <p style={{fontSize:13}}>입력된 데이터가 없습니다.<br/>리소스 및 정보 입력 메뉴에서 데이터를 입력해주세요.</p>
     </div>
   );
 
   return(
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-3">
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20,gap:12,flexWrap:"wrap"}}>
         <div>
-          <h1 className="text-xl font-bold text-gray-800">📊 주간 투입현황</h1>
-          <p className="text-sm text-gray-500 mt-0.5">📅 {fmt(latest.weekStart)} ~ {fmt(latest.weekEnd)}</p>
+          <h1 style={{fontSize:20,fontWeight:700,color:"var(--t1)",letterSpacing:"-.02em"}}>주간 투입현황</h1>
+          <p style={{fontSize:12,color:"var(--t3)",marginTop:4}}>📅 {fmt(latest.weekStart)} ~ {fmt(latest.weekEnd)}</p>
         </div>
-        <button onClick={print} className="self-start ml-auto bg-blue-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-900 flex items-center gap-1.5 shadow whitespace-nowrap">🖨️ 인쇄 / PDF 저장</button>
+        <button className="btn btn-g" onClick={handlePrint}>🖨️ 인쇄 / PDF 저장</button>
       </div>
 
-      {/* 데스크탑 */}
-      <div className="hidden md:block">
-        <div className="bg-blue-900 text-white rounded-t-xl px-6 py-2.5 grid grid-cols-12 gap-2 text-xs font-semibold">
-          <div className="col-span-2">성명</div><div className="col-span-2">팀</div><div className="col-span-1">직책</div>
-          <div className="col-span-6">투입 프로젝트 (투입률 높은 순)</div><div className="col-span-1 text-right">투입율</div>
-        </div>
-        <div className="bg-white rounded-b-xl shadow divide-y divide-gray-100 mb-4">
-          {members.map(m=>{
-            const e=latest.entries.find(x=>x.memberId===m.id);
-            const al=(e?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
-            const tot=al.reduce((s,a)=>s+Number(a.rate),0);
-            const cls=tot===100?"bg-blue-100 text-blue-700 border-blue-200":tot>100?"bg-red-100 text-red-600 border-red-200":tot>0?"bg-orange-100 text-orange-600 border-orange-200":"bg-gray-100 text-gray-400 border-gray-200";
-            return(
-              <div key={m.id} className="grid grid-cols-12 gap-2 items-center px-6 py-4 hover:bg-blue-50">
-                <div className="col-span-2 font-bold text-sm">{m.name}</div>
-                <div className="col-span-2 text-gray-500 text-sm">{m.team}</div>
-                <div className="col-span-1 text-gray-400 text-xs">{m.rank}</div>
-                <div className="col-span-6">
-                  {al.length===0?<span className="text-gray-300 text-xs">배정 내역 없음</span>:al.map((a,i)=>(
-                    <div key={i} className="mb-2 last:mb-0">
-                      <div className="flex justify-between mb-0.5">
-                        <span className="text-xs text-gray-600 truncate max-w-xs">{gname(a.projectId)}</span>
-                        <span className="text-xs font-bold text-blue-600 ml-2">{a.rate}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div className="h-2 rounded-full bg-blue-500" style={{width:`${Math.min(Number(a.rate),100)}%`}}/>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${cls}`}>{tot}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* 데스크탑 테이블 */}
+      <div id="dt" className="card" style={{marginBottom:0,overflowX:"auto"}}>
+        <table className="tbl" style={{minWidth:600}}>
+          <thead>
+            <tr>
+              {["성명","팀","직책"].map(h=><th key={h}>{h}</th>)}
+              <th>투입 프로젝트 (투입률 높은 순)</th>
+              <th style={{textAlign:"right"}}>투입율</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map(m=>{
+              const e=latest.entries.find(x=>x.memberId===m.id);
+              const al=(e?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
+              const tot=al.reduce((s,a)=>s+Number(a.rate),0);
+              const bc=tot===100?"bdg-p":tot>100?"bdg-d":tot>0?"bdg-w":"bdg-dim";
+              return(
+                <tr key={m.id}>
+                  <td><span style={{fontWeight:700,color:"var(--t1)"}}>{m.name}</span></td>
+                  <td>{m.team}</td>
+                  <td>{m.rank}</td>
+                  <td>
+                    {al.length===0?<span style={{fontSize:12,color:"var(--t4)"}}>배정 내역 없음</span>
+                      :al.map((a,i)=>(
+                        <div key={i} style={{marginBottom:i<al.length-1?8:0}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                            <span style={{fontSize:11,color:"var(--t2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"68%"}}>{gname(a.projectId)}</span>
+                            <span style={{fontSize:11,fontWeight:700,color:"var(--primary)",marginLeft:4}}>{a.rate}%</span>
+                          </div>
+                          <div className="progress"><div className="progress-fill" style={{width:`${Math.min(Number(a.rate),100)}%`}}/></div>
+                        </div>
+                      ))
+                    }
+                  </td>
+                  <td style={{textAlign:"right"}}><span className={`badge ${bc}`}>{tot}%</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
-      {/* 모바일 */}
-      <div className="md:hidden bg-white rounded-xl shadow divide-y divide-gray-100 mb-4">
-        {members.map(m=>{
-          const e=latest.entries.find(x=>x.memberId===m.id);
-          const al=(e?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
-          const tot=al.reduce((s,a)=>s+Number(a.rate),0);
-          const cls=tot===100?"bg-blue-100 text-blue-700 border-blue-200":tot>100?"bg-red-100 text-red-600 border-red-200":tot>0?"bg-orange-100 text-orange-600 border-orange-200":"bg-gray-100 text-gray-400 border-gray-200";
-          return(
-            <div key={m.id} className="px-4 py-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                <button className="theme-toggle" onClick={toggleTheme}>
-                  {darkMode?"☀️ 라이트":"🌙 다크"}
-                </button>
-                  <span className="font-bold text-sm">{m.name}</span>
-                  <span className="text-xs text-gray-400">{m.team}</span>
-                  <span className="text-xs text-gray-300">{m.rank}</span>
-                </div>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${cls}`}>{tot}%</span>
-              </div>
-              {al.length===0?<span className="text-gray-300 text-xs">배정 내역 없음</span>:al.map((a,i)=>(
-                <div key={i} className="mb-2 last:mb-0 pl-1">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs text-gray-600 truncate" style={{maxWidth:"75%"}}>{gname(a.projectId)}</span>
-                    <span className="text-xs font-bold text-blue-600 ml-1">{a.rate}%</span>
-                  </div>
-                  <div className="w-full bg-gray-100 rounded-full h-1.5">
-                    <div className="h-1.5 rounded-full bg-blue-500" style={{width:`${Math.min(Number(a.rate),100)}%`}}/>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex gap-4 text-xs text-gray-400 mb-4">
-        {[["bg-blue-500","100% 정상"],["bg-red-400","초과"],["bg-orange-400","미달"]].map(([c,l])=>(
-          <span key={l}><span className={`inline-block w-2.5 h-2.5 rounded-full ${c} mr-1`}></span>{l}</span>
+      {/* 범례 */}
+      <div style={{display:"flex",gap:14,margin:"12px 0 20px",flexWrap:"wrap"}}>
+        {[["var(--primary)","100% 정상"],["var(--danger)","초과"],["var(--warning)","미달"]].map(([c,l])=>(
+          <span key={l} style={{fontSize:11,color:"var(--t3)",display:"flex",alignItems:"center",gap:5}}>
+            <span style={{width:8,height:8,borderRadius:"50%",background:c,display:"inline-block",flexShrink:0}}/>
+            {l}
+          </span>
         ))}
       </div>
 
+      {/* 특이사항 */}
       {notes.length>0&&(
-        <div className="mb-4">
-          <h3 className="font-bold text-gray-700 text-sm mb-2">📌 팀별 특이사항</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div style={{marginBottom:20}}>
+          <h3 style={{fontSize:11,fontWeight:600,color:"var(--t3)",marginBottom:10,textTransform:"uppercase",letterSpacing:".05em"}}>📌 팀별 특이사항</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
             {notes.map(([t,n])=>(
-              <div key={t} className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
-                <div className="font-semibold text-yellow-800 text-xs mb-1">{t} 팀</div>
-                <div className="text-sm text-gray-700 whitespace-pre-wrap">{n}</div>
+              <div key={t} className="alert alert-w" style={{flexDirection:"column",alignItems:"flex-start"}}>
+                <span style={{fontWeight:700,fontSize:11,marginBottom:4}}>{t} 팀</span>
+                <span style={{color:"var(--t2)",fontSize:12,whiteSpace:"pre-wrap",lineHeight:1.6}}>{n}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-gray-700 text-sm">📋 현황 분석</h3>
-          <button onClick={analyze} disabled={analyzing}
-            className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1">
+      {/* 분석 */}
+      <div className="card" style={{padding:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+          <h3 style={{fontSize:13,fontWeight:600,color:"var(--t1)"}}>📋 현황 분석</h3>
+          <button className="btn btn-p" style={{fontSize:12}} onClick={analyze} disabled={analyzing}>
             {analyzing?<><span className="spin">⟳</span> 분석 중...</>:"분석 실행"}
           </button>
         </div>
         {analysis
-          ?<div className="text-xs text-gray-700 leading-relaxed bg-indigo-50 rounded-lg p-3 whitespace-pre-wrap font-mono">{analysis}</div>
-          :<p className="text-xs text-gray-400">버튼을 클릭하면 이번 주 투입 현황을 분석합니다.</p>
+          ?<div style={{fontSize:12,color:"var(--t2)",lineHeight:1.8,background:"var(--bg-sub2)",borderRadius:"var(--r-sm)",padding:12,whiteSpace:"pre-wrap",fontFamily:"monospace"}}>{analysis}</div>
+          :<p style={{fontSize:12,color:"var(--t4)"}}>버튼을 클릭하면 이번 주 투입 현황을 분석합니다.</p>
         }
       </div>
     </div>
   );
 }
 
-/* ── 리소스 입력 ───────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   리소스 입력
+════════════════════════════════════════════ */
 function ResourceTab({members,projects,resources,onSave}){
   const [wS,setWS]=useState(""),  [wE,setWE]=useState("");
   const [team,setTeam]=useState(""), [ent,setEnt]=useState({});
   const [note,setNote]=useState(""), [warn,setWarn]=useState(null);
   const [toast,setToast]=useState(false), [saving,setSaving]=useState(false);
-
   const teams=[...new Set(members.map(m=>m.team))];
   const teamM=members.filter(m=>m.team===team);
   const onDate=s=>{setWS(s);setWE(s?getFriday(s):"");setTeam("");setEnt({});setNote("");};
@@ -508,20 +447,19 @@ function ResourceTab({members,projects,resources,onSave}){
       const e=ex?.entries?.find(x=>x.memberId===m.id);
       init[m.id]=e?.allocations?.length?e.allocations.map(a=>({...a})):[{projectId:"",rate:""}];
     });
-    setEnt(init);
-    setNote(ex?.teamNotes?.[t]||"");
+    setEnt(init);setNote(ex?.teamNotes?.[t]||"");
   };
   const addRow=mid=>setEnt(p=>({...p,[mid]:[...(p[mid]||[]),{projectId:"",rate:""}]}));
   const delRow=(mid,i)=>setEnt(p=>({...p,[mid]:p[mid].filter((_,j)=>j!==i)}));
   const upd=(mid,i,f,v)=>setEnt(p=>({...p,[mid]:p[mid].map((r,j)=>j===i?{...r,[f]:v}:r)}));
   const tot=mid=>(ent[mid]||[]).reduce((s,a)=>s+(Number(a.rate)||0),0);
+  const isOW=!!resources.find(r=>r.weekStart===wS);
 
   const save=()=>{
     if(!wS)return alert("시작일을 선택해주세요.");
     if(!team)return alert("팀을 선택해주세요.");
     const w=teamM.filter(m=>tot(m.id)!==100).map(m=>({memberId:m.id,name:m.name,total:tot(m.id)}));
-    if(w.length){setWarn(w);return;}
-    doSave();
+    if(w.length){setWarn(w);return;}doSave();
   };
   const doSave=async()=>{
     setSaving(true);
@@ -529,107 +467,99 @@ function ResourceTab({members,projects,resources,onSave}){
     const tIds=teamM.map(m=>m.id);
     const ex=resources.find(r=>r.weekStart===wS);
     let res;
-    if(ex){const tn={...ex.teamNotes||{}}; tn[team]=note; res={...ex,entries:[...ex.entries.filter(e=>!tIds.includes(e.memberId)),...newE],teamNotes:tn};}
-    else{const tn={}; tn[team]=note; res={weekStart:wS,weekEnd:wE,entries:newE,teamNotes:tn};}
-    try{await onSave(res);setWarn(null);setToast(true);}
-    catch(e){alert("저장 오류: "+e.message);}
+    if(ex){const tn={...ex.teamNotes||{}};tn[team]=note;res={...ex,entries:[...ex.entries.filter(e=>!tIds.includes(e.memberId)),...newE],teamNotes:tn};}
+    else{const tn={};tn[team]=note;res={weekStart:wS,weekEnd:wE,entries:newE,teamNotes:tn};}
+    try{await onSave(res);setWarn(null);setToast(true);}catch(e){alert("저장 오류: "+e.message);}
     setSaving(false);
   };
-
   const spj=type=>{const l=projects.filter(p=>p.type===type);if(type==="비상용")return[...l.filter(p=>p.name==="내부활동-DX본부"),...l.filter(p=>p.name!=="내부활동-DX본부")];return l;};
 
   return(
     <div>
       <Toast show={toast} onClose={()=>setToast(false)}/>
       {warn&&(
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
-            <h3 className="font-bold text-red-600 text-lg mb-2">⚠️ 투입율 확인 필요</h3>
-            <p className="text-sm text-gray-500 mb-4">아래 팀원의 투입율이 100%가 아닙니다.</p>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}}>
+          <div className="card pop" style={{padding:24,maxWidth:360,width:"100%"}}>
+            <h3 style={{fontWeight:700,color:"var(--warning)",fontSize:15,marginBottom:8}}>⚠️ 투입율 확인 필요</h3>
+            <p style={{fontSize:12,color:"var(--t3)",marginBottom:14}}>아래 팀원의 투입율이 100%가 아닙니다.</p>
             {warn.map(w=>(
-              <div key={w.memberId} className={`flex justify-between px-3 py-2 rounded-lg mb-1.5 ${w.total>100?"bg-red-50":"bg-orange-50"}`}>
-                <span className="text-sm font-semibold">{w.name}</span>
-                <span className={`text-sm font-bold ${w.total>100?"text-red-600":"text-orange-500"}`}>{w.total}% {w.total>100?"▲":"▼"}</span>
+              <div key={w.memberId} className={`alert ${w.total>100?"alert-d":"alert-w"}`} style={{marginBottom:6,justifyContent:"space-between"}}>
+                <span style={{fontWeight:600,fontSize:12}}>{w.name}</span>
+                <span style={{fontWeight:700,fontSize:12}}>{w.total}% {w.total>100?"▲":"▼"}</span>
               </div>
             ))}
-            <div className="flex gap-2 mt-5">
-              <button onClick={()=>setWarn(null)} className="flex-1 bg-blue-700 text-white rounded-lg py-2 text-sm">✏️ 수정</button>
-              <button onClick={doSave} className="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm">그대로 저장</button>
+            <div style={{display:"flex",gap:8,marginTop:16}}>
+              <button className="btn btn-p" style={{flex:1,justifyContent:"center"}} onClick={()=>setWarn(null)}>✏️ 수정하기</button>
+              <button className="btn btn-g" style={{flex:1,justifyContent:"center"}} onClick={doSave}>그대로 저장</button>
             </div>
           </div>
         </div>
       )}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div><label className="block text-xs font-semibold text-gray-500 mb-1">📅 시작일</label>
-            <input type="date" value={wS} onChange={e=>onDate(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
-          <div><label className="block text-xs font-semibold text-gray-500 mb-1">📅 종료일 (금요일 자동)</label>
-            <input type="date" value={wE} onChange={e=>setWE(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50"/></div>
-          <div><label className="block text-xs font-semibold text-gray-500 mb-1">👥 팀 선택</label>
-            <select value={team} onChange={e=>onTeam(e.target.value)} disabled={!wS} className="w-full border rounded-lg px-3 py-2 text-sm disabled:opacity-50">
-              <option value="">팀 선택</option>
-              {teams.map(t=><option key={t} value={t}>{t}</option>)}
+      <div className="card" style={{padding:16,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
+          <div><label className="lbl">📅 시작일</label><input type="date" value={wS} onChange={e=>onDate(e.target.value)} className="inp"/></div>
+          <div><label className="lbl">📅 종료일</label><input type="date" value={wE} onChange={e=>setWE(e.target.value)} className="inp" style={{opacity:.7}}/></div>
+          <div><label className="lbl">👥 팀 선택</label>
+            <select value={team} onChange={e=>onTeam(e.target.value)} disabled={!wS} className="inp">
+              <option value="">팀 선택</option>{teams.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
           </div>
         </div>
-        {/* 덮어쓰기 / 신규 안내 — 주차 기준 */}
-        {wS && (()=>{
-          const ex = resources.find(r=>r.weekStart===wS);
-          return ex
-            ? <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <span className="text-amber-500">✏️</span>
-                <span className="text-xs text-amber-700 font-medium">
-                  이미 입력된 주차입니다. 저장 시 해당 주차 전체 데이터를 <strong>덮어씁니다.</strong>
-                </span>
-              </div>
-            : <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                <span className="text-blue-400">🆕</span>
-                <span className="text-xs text-blue-700 font-medium">신규 주차입니다. 저장 시 구글 시트에 새로 추가됩니다.</span>
-              </div>;
-        })()}
+        {wS&&(
+          <div className={`alert ${isOW?"alert-w":"alert-i"}`} style={{marginTop:12}}>
+            <span>{isOW?"✏️":"🆕"}</span>
+            <span>{isOW?"이미 입력된 주차입니다. 저장 시 해당 주차 전체 데이터를 덮어씁니다.":"신규 주차입니다. 저장 시 구글 시트에 새로 추가됩니다."}</span>
+          </div>
+        )}
       </div>
       {team&&(
         <div>
           {teamM.map(m=>{
-            const rows=ent[m.id]||[], t=tot(m.id);
-            const tc=t===100?"text-green-600":t>100?"text-red-600":"text-orange-500";
-            const bg=t===100?"bg-green-50 border-green-200":t>100?"bg-red-50 border-red-200":"bg-white border-gray-200";
+            const rows=ent[m.id]||[],t=tot(m.id);
+            const ok=t===100,ov=t>100,un=t>0&&t<100;
+            const bc=ok?"var(--success-bd)":ov?"var(--danger-bd)":un?"var(--warning-bd)":"var(--bd)";
             return(
-              <div key={m.id} className={`rounded-lg shadow border p-4 mb-3 ${bg}`}>
-                <div className="flex justify-between items-center mb-3">
-                  <div><span className="font-bold">{m.name}</span><span className="text-sm text-gray-400 ml-2">{m.team} · {m.rank}</span></div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm font-bold ${tc}`}>합계 {t}%</span>
-                    {t===100&&<span className="text-xs text-green-500 bg-green-100 px-2 py-0.5 rounded-full">✓</span>}
-                    {t>100&&<span className="text-xs text-red-500 bg-red-100 px-2 py-0.5 rounded-full">초과</span>}
-                    {t>0&&t<100&&<span className="text-xs text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">미달</span>}
+              <div key={m.id} className="card" style={{padding:14,marginBottom:10,borderColor:bc}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+                  <div>
+                    <span style={{fontWeight:700,fontSize:13,color:"var(--t1)"}}>{m.name}</span>
+                    <span style={{fontSize:11,color:"var(--t3)",marginLeft:8}}>{m.team} · {m.rank}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13,fontWeight:700,color:ok?"var(--success)":ov?"var(--danger)":"var(--warning)"}}>합계 {t}%</span>
+                    {ok&&<span className="badge bdg-s">✓ 정상</span>}
+                    {ov&&<span className="badge bdg-d">초과</span>}
+                    {un&&<span className="badge bdg-w">미달</span>}
                   </div>
                 </div>
                 {rows.map((row,i)=>(
-                  <div key={i} className="flex flex-col sm:flex-row gap-2 mb-2">
-                    <select value={row.projectId} onChange={e=>upd(m.id,i,"projectId",e.target.value)} className="flex-1 border rounded-lg px-3 py-1.5 text-sm">
+                  <div key={i} style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                    <select value={row.projectId} onChange={e=>upd(m.id,i,"projectId",e.target.value)} className="inp" style={{flex:1,minWidth:180}}>
                       <option value="">프로젝트 선택</option>
                       {spj("상용").length>0&&<optgroup label="── 상용">{spj("상용").map(p=><option key={p.id} value={p.id}>[{p.code}] {p.name}</option>)}</optgroup>}
                       {spj("비상용").length>0&&<optgroup label="── 비상용">{spj("비상용").map(p=><option key={p.id} value={p.id}>[{p.code}] {p.name}</option>)}</optgroup>}
                     </select>
-                    <div className="flex items-center gap-1">
-                      <input type="number" value={row.rate} onChange={e=>upd(m.id,i,"rate",e.target.value)} placeholder="0" min="0" max="200" className="w-20 border rounded-lg px-3 py-1.5 text-sm text-center"/>
-                      <span className="text-sm text-gray-500">%</span>
-                      <button onClick={()=>delRow(m.id,i)} className="text-gray-300 hover:text-red-500 text-xl px-1">×</button>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <input type="number" value={row.rate} onChange={e=>upd(m.id,i,"rate",e.target.value)} placeholder="0" min="0" max="200" className="inp" style={{width:72,textAlign:"center"}}/>
+                      <span style={{fontSize:12,color:"var(--t3)"}}>%</span>
+                      <button onClick={()=>delRow(m.id,i)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--t4)",fontSize:18,lineHeight:1,padding:"0 2px"}}
+                        onMouseOver={e=>e.currentTarget.style.color="var(--danger)"} onMouseOut={e=>e.currentTarget.style.color="var(--t4)"}>×</button>
                     </div>
                   </div>
                 ))}
-                <button onClick={()=>addRow(m.id)} className="text-blue-600 text-xs hover:underline mt-1">+ 항목 추가</button>
+                <button onClick={()=>addRow(m.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--primary)",fontSize:12,fontWeight:600,padding:0}}>+ 항목 추가</button>
               </div>
             );
           })}
-          <div className="bg-white rounded-lg shadow border border-yellow-200 p-4 mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">📌 {team} 팀 특이사항 <span className="text-gray-400 font-normal text-xs">(없으면 현황표에 미표시)</span></label>
+          <div className="card" style={{padding:14,marginBottom:12,borderColor:"var(--warning-bd)"}}>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--t2)",marginBottom:8}}>
+              📌 {team} 팀 특이사항
+              <span style={{fontSize:11,color:"var(--t4)",fontWeight:400,marginLeft:6}}>(없으면 현황표에 미표시)</span>
+            </label>
             <textarea value={note} onChange={e=>setNote(e.target.value)} rows={3} placeholder="이번 주 특이사항을 입력하세요..."
-              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-yellow-400"/>
+              className="inp" style={{resize:"none"}}/>
           </div>
-          <button onClick={save} disabled={saving}
-            className="w-full bg-blue-800 text-white rounded-xl py-3 font-bold text-base hover:bg-blue-900 shadow-md disabled:opacity-60 flex items-center justify-center gap-2">
+          <button className="btn btn-p btn-lg" style={{width:"100%",justifyContent:"center"}} onClick={save} disabled={saving}>
             {saving?<><span className="spin">⟳</span> 저장 중...</>:"💾 리소스 저장"}
           </button>
         </div>
@@ -638,7 +568,9 @@ function ResourceTab({members,projects,resources,onSave}){
   );
 }
 
-/* ── 인력 탭 ─────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   인력 탭
+════════════════════════════════════════════ */
 function MembersTab({members,onSave}){
   const [form,setForm]=useState({name:"",team:"",rank:""}), [edit,setEdit]=useState(null);
   const [toast,setToast]=useState(false), [saving,setSaving]=useState(false);
@@ -653,30 +585,28 @@ function MembersTab({members,onSave}){
   return(
     <div>
       <Toast show={toast} onClose={()=>setToast(false)}/>
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="text-xs font-semibold text-gray-500 mb-2">{edit?"✏️ 수정":"➕ 추가"}</div>
-        <div className="flex flex-col md:flex-row gap-2">
+      <div className="card" style={{padding:16,marginBottom:14}}>
+        <label className="lbl">{edit?"✏️ 인력 수정":"➕ 인력 추가"}</label>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
           {[["name","이름"],["team","소속팀"],["rank","직급"]].map(([k,pl])=>(
-            <input key={k} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={pl} className="border rounded px-3 py-1.5 text-sm flex-1"/>
+            <input key={k} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})} placeholder={pl} className="inp" style={{flex:1,minWidth:100}}/>
           ))}
-          <div className="flex gap-2">
-            <button onClick={save} disabled={saving} className="bg-blue-700 text-white rounded px-4 py-1.5 text-sm hover:bg-blue-800 whitespace-nowrap disabled:opacity-60">{saving?"저장 중...":edit?"수정":"추가"}</button>
-            {edit&&<button onClick={()=>{setEdit(null);setForm({name:"",team:"",rank:""}); }} className="bg-gray-200 text-gray-700 rounded px-4 py-1.5 text-sm">취소</button>}
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn btn-p" onClick={save} disabled={saving}>{saving?"저장 중...":edit?"수정":"추가"}</button>
+            {edit&&<button className="btn btn-g" onClick={()=>{setEdit(null);setForm({name:"",team:"",rank:""});}}>취소</button>}
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b"><tr>{["이름","소속팀","직급","관리"].map(h=><th key={h} className="px-4 py-2.5 text-left font-semibold text-gray-600">{h}</th>)}</tr></thead>
+      <div className="card" style={{overflow:"hidden"}}>
+        <table className="tbl"><thead><tr><th>이름</th><th>소속팀</th><th>직급</th><th>관리</th></tr></thead>
           <tbody>
             {members.map(m=>(
-              <tr key={m.id} className="border-t hover:bg-gray-50">
-                <td className="px-4 py-2 font-medium">{m.name}</td>
-                <td className="px-4 py-2 text-gray-500">{m.team}</td>
-                <td className="px-4 py-2 text-gray-500">{m.rank}</td>
-                <td className="px-4 py-2">
-                  <button onClick={()=>{setEdit(m);setForm({name:m.name,team:m.team,rank:m.rank});}} className="text-blue-600 text-xs hover:underline mr-3">수정</button>
-                  <button onClick={async()=>{if(confirm("삭제?"))await onSave(members.filter(x=>x.id!==m.id));}} className="text-red-500 text-xs hover:underline">삭제</button>
+              <tr key={m.id}>
+                <td><span style={{fontWeight:600,color:"var(--t1)"}}>{m.name}</span></td>
+                <td>{m.team}</td><td>{m.rank}</td>
+                <td>
+                  <button className="btn btn-g" style={{fontSize:11,padding:"3px 10px",marginRight:6}} onClick={()=>{setEdit(m);setForm({name:m.name,team:m.team,rank:m.rank});}}>수정</button>
+                  <button className="btn btn-d" style={{fontSize:11,padding:"3px 10px"}} onClick={async()=>{if(confirm("삭제?"))await onSave(members.filter(x=>x.id!==m.id));}}>삭제</button>
                 </td>
               </tr>
             ))}
@@ -687,7 +617,9 @@ function MembersTab({members,onSave}){
   );
 }
 
-/* ── 프로젝트 탭 ─────────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   프로젝트 탭
+════════════════════════════════════════════ */
 function ProjectsTab({projects,onSave}){
   const [form,setForm]=useState({type:"상용",code:"",name:""}), [edit,setEdit]=useState(null);
   const [toast,setToast]=useState(false), [saving,setSaving]=useState(false);
@@ -703,35 +635,39 @@ function ProjectsTab({projects,onSave}){
   return(
     <div>
       <Toast show={toast} onClose={()=>setToast(false)}/>
-      <div className="bg-white rounded-lg shadow p-4 mb-5">
-        <div className="text-xs font-semibold text-gray-500 mb-2">{edit?`✏️ 수정 (ID #${edit.id})`:"➕ 추가"}</div>
-        <div className="flex flex-col md:flex-row gap-2">
-          <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="border rounded px-3 py-1.5 text-sm w-28"><option value="상용">상용</option><option value="비상용">비상용</option></select>
-          <input value={form.code} onChange={e=>setForm({...form,code:e.target.value})} placeholder="프로젝트 코드" className="border rounded px-3 py-1.5 text-sm w-36"/>
-          <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="프로젝트명" className="border rounded px-3 py-1.5 text-sm flex-1"/>
-          <div className="flex gap-2">
-            <button onClick={save} disabled={saving} className="bg-blue-700 text-white rounded px-4 py-1.5 text-sm hover:bg-blue-800 whitespace-nowrap disabled:opacity-60">{saving?"저장 중...":edit?"수정":"추가"}</button>
-            {edit&&<button onClick={()=>{setEdit(null);setForm({type:"상용",code:"",name:""});}} className="bg-gray-200 text-gray-700 rounded px-4 py-1.5 text-sm">취소</button>}
+      <div className="card" style={{padding:16,marginBottom:16}}>
+        <label className="lbl">{edit?`✏️ 수정 (ID #${edit.id})`:"➕ 프로젝트 추가"}</label>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} className="inp" style={{width:90}}>
+            <option value="상용">상용</option><option value="비상용">비상용</option>
+          </select>
+          <input value={form.code} onChange={e=>setForm({...form,code:e.target.value})} placeholder="프로젝트 코드" className="inp" style={{width:130}}/>
+          <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="프로젝트명" className="inp" style={{flex:1,minWidth:140}}/>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn btn-p" onClick={save} disabled={saving}>{saving?"저장 중...":edit?"수정":"추가"}</button>
+            {edit&&<button className="btn btn-g" onClick={()=>{setEdit(null);setForm({type:"상용",code:"",name:""});}}>취소</button>}
           </div>
         </div>
-        {edit&&<p className="text-xs text-indigo-500 mt-2">💡 수정해도 내부 ID #{edit.id}로 기존 이력 유지</p>}
+        {edit&&<p style={{fontSize:11,color:"var(--primary)",marginTop:8}}>💡 수정해도 내부 ID #{edit.id}로 기존 이력 유지</p>}
       </div>
-      {[["상용",c,"bg-blue-100 text-blue-700"],["비상용",nc,"bg-gray-100 text-gray-600"]].map(([lbl,lst,cls])=>(
-        <div key={lbl} className="mb-5">
-          <h3 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-1.5"><span className={`px-2 py-0.5 rounded-full text-xs ${cls}`}>{lbl}</span>{lst.length}건</h3>
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b"><tr>{["ID","구분","코드","프로젝트명","관리"].map(h=><th key={h} className="px-4 py-2.5 text-left font-semibold text-gray-600">{h}</th>)}</tr></thead>
+      {[["상용",c,"bdg-p"],["비상용",nc,"bdg-dim"]].map(([lbl,lst,bc])=>(
+        <div key={lbl} style={{marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <span className={`badge ${bc}`}>{lbl}</span>
+            <span style={{fontSize:11,color:"var(--t4)"}}>{lst.length}건</span>
+          </div>
+          <div className="card" style={{overflow:"hidden"}}>
+            <table className="tbl"><thead><tr><th>ID</th><th>구분</th><th>코드</th><th>프로젝트명</th><th>관리</th></tr></thead>
               <tbody>
                 {lst.map(p=>(
-                  <tr key={p.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-300 text-xs font-mono">#{p.id}</td>
-                    <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-xs ${cls}`}>{p.type}</span></td>
-                    <td className="px-4 py-2 font-mono text-xs">{p.code}</td>
-                    <td className="px-4 py-2 font-medium">{p.name}</td>
-                    <td className="px-4 py-2">
-                      <button onClick={()=>{setEdit(p);setForm({type:p.type,code:p.code,name:p.name});}} className="text-blue-600 text-xs hover:underline mr-3">수정</button>
-                      <button onClick={async()=>{if(confirm("삭제?"))await onSave(projects.filter(x=>x.id!==p.id));}} className="text-red-500 text-xs hover:underline">삭제</button>
+                  <tr key={p.id}>
+                    <td><span style={{fontFamily:"monospace",fontSize:11,color:"var(--t4)"}}> #{p.id}</span></td>
+                    <td><span className={`badge ${bc}`}>{p.type}</span></td>
+                    <td><span style={{fontFamily:"monospace",fontSize:12}}>{p.code}</span></td>
+                    <td><span style={{fontWeight:500,color:"var(--t1)"}}>{p.name}</span></td>
+                    <td>
+                      <button className="btn btn-g" style={{fontSize:11,padding:"3px 10px",marginRight:6}} onClick={()=>{setEdit(p);setForm({type:p.type,code:p.code,name:p.name});}}>수정</button>
+                      <button className="btn btn-d" style={{fontSize:11,padding:"3px 10px"}} onClick={async()=>{if(confirm("삭제?"))await onSave(projects.filter(x=>x.id!==p.id));}}>삭제</button>
                     </td>
                   </tr>
                 ))}
@@ -744,43 +680,9 @@ function ProjectsTab({projects,onSave}){
   );
 }
 
-/* ── 구글시트 탭 ─────────────────────────────────────────────── */
-function SheetTab({resources}){
-  const weeks=[...resources].sort((a,b)=>a.weekStart.localeCompare(b.weekStart));
-  return(
-    <div>
-      <div className="bg-white rounded-xl shadow p-5 mb-4">
-        <h3 className="font-bold text-gray-700 text-sm mb-2">📊 구글 시트 연동</h3>
-        <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-          리소스 저장 시 구글 시트 <strong className="text-gray-700">투입현황</strong> 탭에 자동 누적 저장됩니다.<br/>
-          컬럼: 저장일시 · 주차시작 · 주차종료 · 이름 · 팀 · 직급 · <strong>구분</strong> · 프로젝트코드 · 프로젝트명 · 투입율(%)
-        </p>
-        <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 shadow">
-          📋 구글 시트 열기
-        </a>
-      </div>
-      <div className="bg-white rounded-xl shadow p-5">
-        <h3 className="font-bold text-gray-700 text-sm mb-3">📋 저장된 주차 <span className="text-gray-400 font-normal">({resources.length}개)</span></h3>
-        {!resources.length?<p className="text-gray-300 text-sm text-center py-8">저장된 데이터가 없습니다.</p>:
-          <div className="divide-y divide-gray-100">
-            {weeks.map(r=>{
-              const cnt=r.entries.filter(e=>e.allocations?.length>0).length;
-              return(
-                <div key={r.weekStart} className="flex items-center justify-between py-2.5">
-                  <span className="text-sm font-semibold text-gray-700">{fmt(r.weekStart)} ~ {fmt(r.weekEnd)}</span>
-                  <span className="text-xs text-gray-400">{cnt}명 입력</span>
-                </div>
-              );
-            })}
-          </div>
-        }
-      </div>
-    </div>
-  );
-}
-
-/* ── 입력 페이지 ─────────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   입력 페이지
+════════════════════════════════════════════ */
 function InputPage({members,projects,resources,onSaveMembers,onSaveProjects,onSaveResource}){
   const [tab,setTab]=useState("resource");
   const TABS=[["resource","📝 리소스입력"],["members","👤 인력"],["projects","📁 프로젝트"]];
@@ -789,14 +691,14 @@ function InputPage({members,projects,resources,onSaveMembers,onSaveProjects,onSa
       {logout=>(
         <div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-            <h1 style={{fontSize:18,fontWeight:700,color:"var(--color-text-1)"}}>리소스 및 정보 입력</h1>
-            <button className="ds-btn ds-btn-ghost" style={{fontSize:11}} onClick={logout}>로그아웃</button>
+            <h1 style={{fontSize:20,fontWeight:700,color:"var(--t1)",letterSpacing:"-.02em"}}>리소스 및 정보 입력</h1>
+            <button className="btn btn-g" style={{fontSize:11}} onClick={logout}>로그아웃</button>
           </div>
-          <div className="ds-tabs" style={{marginBottom:20}}>
+          <div className="tabs" style={{marginBottom:20}}>
             {TABS.map(([k,l])=>(
-              <button key={k} className={`ds-tab${tab===k?" active":""}`} onClick={()=>setTab(k)}>{l}</button>
+              <button key={k} className={`tab${tab===k?" on":""}`} onClick={()=>setTab(k)}>{l}</button>
             ))}
-            <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer" className="ds-tab-link">📋 구글시트이동</a>
+            <a href={SHEET_LINK} target="_blank" rel="noopener noreferrer" className="tab-a">📋 구글시트이동</a>
           </div>
           {tab==="resource"&&<ResourceTab members={members} projects={projects} resources={resources} onSave={onSaveResource}/>}
           {tab==="members"&&<MembersTab members={members} onSave={onSaveMembers}/>}
@@ -807,7 +709,9 @@ function InputPage({members,projects,resources,onSaveMembers,onSaveProjects,onSa
   );
 }
 
-/* ── 앱 루트 ─────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════
+   앱 루트
+════════════════════════════════════════════ */
 function App(){
   const [page,setPage]=useState("main");
   const [members,setMembers]=useState(INIT_MEMBERS);
@@ -819,138 +723,150 @@ function App(){
   const [menuOpen,setMenuOpen]=useState(false);
   const [syncing,setSyncing]=useState(false);
   const [syncMsg,setSyncMsg]=useState("");
-  const [darkMode,setDarkMode]=useState(false);
+  const [dark,setDark]=useState(false);
 
   const toggleTheme=()=>{
-    const next=!darkMode;
-    setDarkMode(next);
-    document.documentElement.setAttribute("data-theme", next?"dark":"");
+    const next=!dark;
+    setDark(next);
+    document.documentElement.setAttribute("data-theme",next?"dark":"");
   };
 
-  const loadData=async(showErr)=>{
-    const lsM=LS.get("dx-members");  if(lsM)setMembers(lsM);
-    const lsP=LS.get("dx-projects"); if(lsP)setProjects(lsP);
-    const lsR=LS.get("dx-resources");if(lsR)setResources(lsR);
+  const loadData=async()=>{
+    const lsM=LS.get("dx-m");if(lsM)setMembers(lsM);
+    const lsP=LS.get("dx-p");if(lsP)setProjects(lsP);
+    const lsR=LS.get("dx-r");if(lsR)setResources(lsR);
     try{
       const [cfg,res]=await Promise.all([gasGet("getConfig"),gasGet("getResources")]);
       if(cfg.ok&&cfg.data){
-        if(cfg.data.members) {setMembers(cfg.data.members);  LS.set("dx-members",cfg.data.members);}
-        if(cfg.data.projects){setProjects(cfg.data.projects);LS.set("dx-projects",cfg.data.projects);}
+        if(cfg.data.members){setMembers(cfg.data.members);LS.set("dx-m",cfg.data.members);}
+        if(cfg.data.projects){setProjects(cfg.data.projects);LS.set("dx-p",cfg.data.projects);}
         setConnected(true);
       }
-      if(res.ok&&res.data){
-        setResources(res.data);
-        LS.set("dx-resources",res.data);
-      }
+      if(res.ok&&res.data){setResources(res.data);LS.set("dx-r",res.data);}
     }catch(e){
-      console.warn("GAS load failed:",e.message);
-      if(showErr&&!lsM&&!lsP&&!lsR)setConnErr(true);
+      console.warn("GAS:",e.message);
     }
   };
 
-  useEffect(()=>{
-    (async()=>{await loadData(true);setLoaded(true);})();
-  },[]);
+  useEffect(()=>{(async()=>{
+    await loadData();
+    const lsM=LS.get("dx-m"),lsP=LS.get("dx-p"),lsR=LS.get("dx-r");
+    if(!connected&&!lsM&&!lsP&&!lsR)setConnErr(true);
+    setLoaded(true);
+  })();},[]);
 
   const handleSync=async()=>{
-    setSyncing(true); setSyncMsg("");
+    setSyncing(true);setSyncMsg("");
     try{
-      // 중복 정리
       const clean=await gasGet("cleanupSheets");
-      // 최신 데이터 로드
-      await loadData(false);
-      setSyncMsg(clean.cleaned>0?`✅ 동기화 완료 (중복 ${clean.cleaned}건 정리됨)`:"✅ 동기화 완료 (중복 없음)");
-    }catch(e){
-      setSyncMsg("⚠️ 동기화 실패: "+e.message);
-    }
-    setSyncing(false);
-    setTimeout(()=>setSyncMsg(""),4000);
+      await loadData();
+      setSyncMsg(clean.cleaned>0?`✅ 동기화 완료 (중복 ${clean.cleaned}건 정리됨)`:"✅ 동기화 완료");
+    }catch(e){setSyncMsg("⚠️ 동기화 실패");}
+    setSyncing(false);setTimeout(()=>setSyncMsg(""),4000);
   };
 
-  const saveMembers=async d=>{
-    setMembers(d); LS.set("dx-members",d);
-    await gasPost({action:"saveConfig",key:"members",data:d});
-  };
-  const saveProjects=async d=>{
-    setProjects(d); LS.set("dx-projects",d);
-    await gasPost({action:"saveConfig",key:"projects",data:d});
-  };
+  const saveMembers=async d=>{setMembers(d);LS.set("dx-m",d);await gasPost({action:"saveConfig",key:"members",data:d});};
+  const saveProjects=async d=>{setProjects(d);LS.set("dx-p",d);await gasPost({action:"saveConfig",key:"projects",data:d});};
   const saveResource=async res=>{
-    const newR=resources.find(r=>r.weekStart===res.weekStart)
-      ?resources.map(r=>r.weekStart===res.weekStart?res:r)
-      :[...resources,res];
-    setResources(newR); LS.set("dx-resources",newR);
+    const nr=resources.find(r=>r.weekStart===res.weekStart)?resources.map(r=>r.weekStart===res.weekStart?res:r):[...resources,res];
+    setResources(nr);LS.set("dx-r",nr);
     await gasPost({action:"saveResource",data:res,members,projects});
   };
 
   const NAV=[["main","📊 투입현황"],["input","🛠️ 리소스 및 정보 입력"]];
 
   if(!loaded)return(
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <div className="text-center text-gray-400">
-        <div className="text-4xl spin mb-3">⟳</div>
-        <p className="text-sm">데이터 불러오는 중...</p>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}>
+      <div style={{textAlign:"center",color:"var(--t3)"}}>
+        <div style={{fontSize:36,marginBottom:12}} className="spin">⟳</div>
+        <p style={{fontSize:13}}>데이터 불러오는 중...</p>
       </div>
     </div>
   );
 
   if(connErr)return(
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <div className="bg-white rounded-xl shadow p-8 text-center">
-        <div className="text-4xl mb-3">⚠️</div>
-        <p className="font-bold text-gray-700 mb-2">서버 연결 오류</p>
-        <p className="text-sm text-gray-400 mb-4">Google Apps Script 연결을 확인해주세요.</p>
-        <button onClick={()=>window.location.reload()} className="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">다시 시도</button>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}>
+      <div className="card" style={{padding:40,textAlign:"center",maxWidth:300}}>
+        <div style={{fontSize:40,marginBottom:12}}>⚠️</div>
+        <p style={{fontWeight:700,color:"var(--t1)",marginBottom:8}}>서버 연결 오류</p>
+        <p style={{fontSize:12,color:"var(--t3)",marginBottom:20}}>Google Apps Script 연결을 확인해주세요.</p>
+        <button className="btn btn-p" style={{width:"100%",justifyContent:"center"}} onClick={()=>window.location.reload()}>다시 시도</button>
       </div>
     </div>
   );
 
   return(
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-blue-900 text-white shadow-lg sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="flex items-center justify-between py-3">
-            <div className="font-bold text-base whitespace-nowrap">🏢 DX Div. Resource</div>
-            <div className="hidden md:flex items-center gap-2">
+    <div style={{minHeight:"100vh",background:"var(--bg)"}}>
+      {/* ── 네비게이션 ── */}
+      <nav style={{background:"var(--bg-sub)",borderBottom:"1px solid var(--bd)",position:"sticky",top:0,zIndex:40,boxShadow:"var(--shadow)"}}>
+        <div style={{maxWidth:1080,margin:"0 auto",padding:"0 20px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",height:52}}>
+            {/* 로고 */}
+            <span style={{fontWeight:800,fontSize:14,letterSpacing:"-.02em",color:"var(--t1)"}}>
+              <span style={{color:"var(--primary)"}}>DX</span>
+              <span style={{fontWeight:400,color:"var(--t3)",margin:"0 5px"}}>/</span>
+              <span style={{fontWeight:500,fontSize:13}}>Resource</span>
+            </span>
+
+            {/* 데스크탑 메뉴 */}
+            <div id="nav-d" style={{display:"flex",alignItems:"center",gap:8}}>
+              {/* 연동 상태 */}
               {connected&&(
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1.5 bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap">
-                    <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse inline-block"></span>
-                    구글시트연동
-                  </span>
-                  <button onClick={handleSync} disabled={syncing}
-                    className="flex items-center gap-1 bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg transition whitespace-nowrap disabled:opacity-50">
-                    {syncing?<span className="spin">⟳</span>:"🔄"} {syncing?"동기화 중...":"데이터 동기화"}
-                  </button>
-                </div>
+                <span style={{display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:"var(--success)",background:"var(--success-lt)",border:"1px solid var(--success-bd)",borderRadius:99,padding:"4px 10px",whiteSpace:"nowrap"}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:"var(--success)",display:"inline-block"}}/>구글시트연동
+                </span>
               )}
-              <div className="flex items-center gap-1">
+              {/* 데이터 동기화 */}
+              <button className="btn btn-g" style={{fontSize:11,padding:"5px 10px"}} onClick={handleSync} disabled={syncing}>
+                {syncing?<><span className="spin">⟳</span> 동기화 중...</>:"🔄 동기화"}
+              </button>
+              {/* 다크/라이트 */}
+              <button className="btn btn-g" style={{fontSize:11,padding:"5px 12px",borderRadius:99}} onClick={toggleTheme}>
+                {dark?"☀️ 라이트":"🌙 다크"}
+              </button>
+              {/* 페이지 메뉴 */}
+              <div style={{display:"flex",gap:2}}>
                 {NAV.map(([k,l])=>(
-                  <button key={k} onClick={()=>setPage(k)} className={"px-4 py-1.5 rounded-lg text-sm font-medium transition "+(page===k?"bg-blue-600 shadow":"hover:bg-blue-800")}>{l}</button>
+                  <button key={k} onClick={()=>setPage(k)} style={{padding:"6px 14px",borderRadius:"var(--r-sm)",fontSize:13,fontWeight:500,border:"none",cursor:"pointer",transition:"all .15s",background:page===k?"var(--primary)":"transparent",color:page===k?"#fff":"var(--t3)"}}>
+                    {l}
+                  </button>
                 ))}
               </div>
             </div>
-            <button className="md:hidden text-xl px-1" onClick={()=>setMenuOpen(!menuOpen)}>{menuOpen?"✕":"☰"}</button>
+
+            {/* 모바일 햄버거 */}
+            <button id="nav-m" style={{background:"none",border:"none",cursor:"pointer",color:"var(--t2)",fontSize:20,display:"none"}} onClick={()=>setMenuOpen(!menuOpen)}>
+              {menuOpen?"✕":"☰"}
+            </button>
           </div>
+
           {/* 동기화 메시지 */}
-          {syncMsg&&(
-            <div className="bg-blue-800 text-center text-xs py-1.5 text-green-200">{syncMsg}</div>
-          )}
+          {syncMsg&&<div style={{background:"var(--success-lt)",textAlign:"center",fontSize:12,padding:"5px",color:"var(--success)",borderTop:"1px solid var(--success-bd)"}}>{syncMsg}</div>}
         </div>
+
+        {/* 모바일 드롭다운 */}
         {menuOpen&&(
-          <div className="md:hidden border-t border-blue-800">
+          <div style={{borderTop:"1px solid var(--bd)",background:"var(--bg-sub)"}}>
             {NAV.map(([k,l])=>(
-              <button key={k} onClick={()=>{setPage(k);setMenuOpen(false);}} className={"block w-full text-left px-5 py-3 text-sm "+(page===k?"bg-blue-700 font-semibold":"hover:bg-blue-800")}>{l}</button>
+              <button key={k} onClick={()=>{setPage(k);setMenuOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"12px 20px",fontSize:13,background:page===k?"var(--primary-lt)":"none",color:page===k?"var(--primary)":"var(--t2)",border:"none",cursor:"pointer",fontWeight:page===k?600:400}}>
+                {l}
+              </button>
             ))}
-            {connected&&(
-              <>
-                <button onClick={handleSync} disabled={syncing} className="block w-full text-left px-5 py-3 text-sm text-blue-200 hover:bg-blue-800 disabled:opacity-50">{syncing?"🔄 동기화 중...":"🔄 데이터 동기화"}</button>
-              </>
-            )}
+            <button onClick={()=>{handleSync();setMenuOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"12px 20px",fontSize:13,color:"var(--t3)",background:"none",border:"none",cursor:"pointer"}}>🔄 데이터 동기화</button>
+            <button onClick={()=>{toggleTheme();setMenuOpen(false);}} style={{display:"block",width:"100%",textAlign:"left",padding:"12px 20px",fontSize:13,color:"var(--t3)",background:"none",border:"none",cursor:"pointer"}}>{dark?"☀️ 라이트 모드":"🌙 다크 모드"}</button>
           </div>
         )}
+
+        {/* 반응형 CSS */}
+        <style>{`
+          @media(max-width:767px){
+            #nav-d{display:none!important;}
+            #nav-m{display:block!important;}
+          }
+        `}</style>
       </nav>
-      <div className="max-w-5xl mx-auto px-4 py-5">
+
+      <div style={{maxWidth:1080,margin:"0 auto",padding:20}}>
         {page==="main"&&<MainPage members={members} projects={projects} resources={resources}/>}
         {page==="input"&&<InputPage members={members} projects={projects} resources={resources} onSaveMembers={saveMembers} onSaveProjects={saveProjects} onSaveResource={saveResource}/>}
       </div>
