@@ -118,10 +118,28 @@ select.inp:disabled{opacity:.4;cursor:not-allowed;}
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+// Babel loose 모드 설정 — _excluded 중복 오류 방지
+try {
+  Babel.registerPreset('dx', {
+    presets: [
+      [Babel.availablePresets['react']],
+      [Babel.availablePresets['env'], {
+        targets: { chrome: '90', safari: '14', firefox: '90' },
+        loose: true,
+        modules: false,
+        exclude: ['transform-regenerator']
+      }]
+    ]
+  });
+} catch(e) {
+  console.warn('Babel preset registration:', e);
+}
+</script>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets="react,env" data-plugins="transform-object-rest-spread">
+<script type="text/babel" data-presets="dx,react">
 const {useState,useEffect,useRef}=React;
 
 const GAS="https://script.google.com/macros/s/AKfycbx3hb69nTuRt-VVRtOlCyy6dw-YeOIG4brN_ziwjeeVBgcPFRA6QLNXDzoPLPvJJZ7a/exec";
