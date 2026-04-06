@@ -121,7 +121,7 @@ select.inp:disabled{opacity:.4;cursor:not-allowed;}
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets="react">
+<script type="text/babel" data-presets="react,env" data-plugins="transform-object-rest-spread">
 const {useState,useEffect,useRef}=React;
 
 const GAS="https://script.google.com/macros/s/AKfycbx3hb69nTuRt-VVRtOlCyy6dw-YeOIG4brN_ziwjeeVBgcPFRA6QLNXDzoPLPvJJZ7a/exec";
@@ -174,9 +174,9 @@ function gasCall(params){
 }
 const gasGet=action=>gasCall({action});
 const gasPost=payload=>{
-  const {action,...rest}=payload;
-  if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
-  if(action==="saveResource") return gasCall({action,resource:rest.data,members:rest.members,projects:rest.projects});
+  const action=payload.action;
+  if(action==="saveConfig") return gasCall({action:"saveConfig",key:payload.key,value:JSON.stringify(payload.data)});
+  if(action==="saveResource") return gasCall({action:"saveResource",resource:payload.data,members:payload.members,projects:payload.projects});
   return Promise.resolve({ok:false});
 };
 
