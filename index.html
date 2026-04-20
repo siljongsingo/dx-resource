@@ -444,7 +444,7 @@ function renderResourceTab(){
         <label class="lbl">📌 ${esc(S.team)} 팀 특이사항
           <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--t4);margin-left:6px">없으면 현황표에 미표시</span>
         </label>
-        <textarea id="note-ta" class="inp" rows="3" placeholder="이번 주 특이사항을 입력하세요..." style="resize:none">${esc(S.note)}</textarea>
+        <textarea id="note-ta" class="inp" placeholder="이번 주 특이사항을 입력하세요..." style="resize:none;min-height:80px;overflow:hidden" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'">${esc(S.note)}</textarea>
       </div>
       <button class="btn btn-p btn-lg" style="width:100%;justify-content:center" onclick="saveResource()">💾 리소스 저장</button>
     `:""}`;
@@ -568,6 +568,9 @@ function renderWarnModal(){
 function bindEvents(){
   const pi=document.getElementById("pin-inp");
   if(pi) pi.addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
+  // ★ textarea 초기 높이 자동 조정 (기존 내용 있을 때)
+  const ta=document.getElementById("note-ta");
+  if(ta){ta.style.height="auto";ta.style.height=ta.scrollHeight+"px";}
 }
 
 /* ═══════════════════════════════════════
