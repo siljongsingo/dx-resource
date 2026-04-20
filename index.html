@@ -621,12 +621,15 @@ function updEntry(mid,i,f,v){
   }
 }
 
+function readNote(){
+  // ★ textarea 값을 항상 직접 읽어서 S.note에 반영
+  const ta=document.getElementById("note-ta");
+  if(ta&&ta.value!==undefined) S.note=ta.value;
+}
 function saveResource(){
   if(!S.wS)return alert("시작일을 선택해주세요.");
   if(!S.team)return alert("팀을 선택해주세요.");
-  // ★ 저장 버튼 클릭 시 textarea 값을 직접 읽어서 S.note에 반영
-  const ta=document.getElementById("note-ta");
-  if(ta) S.note=ta.value;
+  readNote(); // textarea 값 읽기
   const teamM=S.members.filter(m=>m.team===S.team);
   const warn=teamM.filter(m=>totFor(m.id)!==100).map(m=>({memberId:m.id,name:m.name,total:totFor(m.id)}));
   if(warn.length){S.warnList=warn;render();return;}
@@ -634,6 +637,7 @@ function saveResource(){
 }
 
 async function doSaveResource(){
+  readNote(); // ★ "그대로 저장" 경로에서도 textarea 값 읽기
   const teamM=S.members.filter(m=>m.team===S.team);
   const tIds=teamM.map(m=>m.id);
   const newE=teamM.map(m=>({
