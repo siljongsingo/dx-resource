@@ -186,7 +186,10 @@ async function loadData(){
       if(cfg.data.projects){S.projects=cfg.data.projects;LS.set("dx-p",cfg.data.projects);}
       S.connected=true;
     }
-    if(res.ok&&res.data&&res.data.length){S.resources=res.data;LS.set("dx-r",res.data);}
+    if(res.ok&&res.data&&res.data.length){
+      S.resources=res.data;
+      LS.set("dx-r",res.data);
+    }
   }catch(e){console.warn("GAS:",e);}
   render();
 }
@@ -250,7 +253,6 @@ function renderMain(){
 
   const notes=latest.teamNotes?Object.entries(latest.teamNotes).filter(([,n])=>n&&n.trim()):[];
 
-  /* 모바일 카드 */
   const mobileCards=S.members.map(m=>{
     const e=latest.entries.find(x=>x.memberId===m.id);
     const al=(e?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
@@ -275,7 +277,6 @@ function renderMain(){
       </div>${bars}</div>`;
   }).join("");
 
-  /* 데스크탑 행 */
   const dtRows=S.members.map(m=>{
     const e=latest.entries.find(x=>x.memberId===m.id);
     const al=(e?.allocations||[]).filter(a=>a.rate>0).sort((a,b)=>Number(b.rate)-Number(a.rate));
@@ -434,7 +435,7 @@ function renderResourceTab(){
       </div>
       ${S.wS?`<div class="alert ${isOW?"alert-w":"alert-i"}" style="margin-top:12px">
         <span>${isOW?"✏️":"🆕"}</span>
-        <span>${isOW?"이미 입력된 주차입니다. 저장 시 해당 주차 전체 데이터를 덮어씁니다.":"신규 주차입니다. 저장 시 구글 시트에 새로 추가됩니다."}</span>
+        <span>${isOW?"이미 입력된 주차입니다. 저장 시 해당 팀 데이터만 업데이트됩니다.":"신규 주차입니다. 저장 시 구글 시트에 새로 추가됩니다."}</span>
       </div>`:""}
     </div>
     ${S.team?`
@@ -609,7 +610,6 @@ function delRow(mid,i){
 function updEntry(mid,i,f,v){
   if(!S.entries[mid])return;
   S.entries[mid][i][f]=v;
-  /* 합계만 리렌더 (전체 리렌더 방지) */
   const t=totFor(mid);
   const card=document.querySelectorAll(".card[data-mid='"+mid+"']")[0];
   if(!card)return;
@@ -629,6 +629,7 @@ function saveResource(){
   if(warn.length){S.warnList=warn;render();return;}
   doSaveResource();
 }
+
 async function doSaveResource(){
   const teamM=S.members.filter(m=>m.team===S.team);
   const tIds=teamM.map(m=>m.id);
@@ -636,11 +637,34 @@ async function doSaveResource(){
     memberId:m.id,
     allocations:(S.entries[m.id]||[]).filter(a=>a.projectId!==""&&a.rate!=="").map(a=>({...a,projectId:Number(a.projectId)}))
   }));
+
+  // ★ 핵심 수정: 기존 이번 주차 전체 데이터와 병합 후 GAS에 전송
   const ex=S.resources.find(r=>r.weekStart===S.wS);
-  let res;
-  if(ex){const tn={...ex.teamNotes||{}};tn[S.team]=S.note;res={...ex,entries:[...ex.entries.filter(e=>!tIds.includes(e.memberId)),...newE],teamNotes:tn};}
-  else{const tn={};tn[S.team]=S.note;res={weekStart:S.wS,weekEnd:S.wE,entries:newE,teamNotes:tn};}
-  S.resources=S.resources.find(r=>r.weekStart===S.wS)?S.resources.map(r=>r.weekStart===S.wS?res:r):[...S.resources,res];
+
+  // entries 병합: 현재 팀 외 기존 entries 유지
+  const keptEntries=(ex?.entries||[]).filter(e=>!tIds.includes(e.memberId));
+  const mergedEntries=[...keptEntries,...newE];
+
+  // teamNotes 병합: 기존 notes 유지하면서 현재 팀 note만 업데이트
+  const mergedNotes={...(ex?.teamNotes||{})};
+  if(S.note&&S.note.trim()){
+    mergedNotes[S.team]=S.note; // 내용 있을 때만 덮어씀
+  } else if(!mergedNotes[S.team]){
+    mergedNotes[S.team]=""; // 기존 값 없을 때만 빈값 설정
+  }
+  // 기존 다른 팀 notes는 건드리지 않음
+
+  const res={
+    weekStart:S.wS,
+    weekEnd:S.wE,
+    entries:mergedEntries,
+    teamNotes:mergedNotes
+  };
+
+  S.resources=S.resources.find(r=>r.weekStart===S.wS)
+    ?S.resources.map(r=>r.weekStart===S.wS?res:r)
+    :[...S.resources,res];
+
   LS.set("dx-r",S.resources);
   S.warnList=null;S.toast=true;render();
   setTimeout(()=>{S.toast=false;render();},2200);
