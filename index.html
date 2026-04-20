@@ -170,7 +170,7 @@ const gasGet=action=>gasCall({action});
 const gasPost=payload=>{
   const {action,...rest}=payload;
   if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
-  if(action==="saveResource") return gasCall({action,resource:rest.data,members:rest.members,projects:rest.projects});
+  if(action==="saveResource") return gasCall({action,resource:rest.data});
   return Promise.resolve({ok:false});
 };
 
@@ -675,7 +675,7 @@ async function doSaveResource(){
   LS.set("dx-r",S.resources);
   S.warnList=null;S.toast=true;render();
   setTimeout(()=>{S.toast=false;render();},2200);
-  try{await gasPost({action:"saveResource",data:res,members:S.members,projects:S.projects});}catch(e){}
+  try{await gasPost({action:"saveResource",data:res});}catch(e){}
 }
 
 function saveMember(){
@@ -715,9 +715,8 @@ function delProject(id){
 async function doSync(){
   S.syncing=true;S.syncMsg="";render();
   try{
-    const clean=await gasGet("cleanupSheets");
     await loadData();
-    S.syncMsg=clean.cleaned>0?`✅ 동기화 완료 (중복 ${clean.cleaned}건 정리됨)`:"✅ 동기화 완료";
+    S.syncMsg="✅ 동기화 완료";
   }catch(e){S.syncMsg="⚠️ 동기화 실패";}
   S.syncing=false;render();
   setTimeout(()=>{S.syncMsg="";render();},4000);
