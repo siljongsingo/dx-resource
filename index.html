@@ -444,7 +444,7 @@ function renderResourceTab(){
         <label class="lbl">📌 ${esc(S.team)} 팀 특이사항
           <span style="font-weight:400;text-transform:none;font-size:11px;color:var(--t4);margin-left:6px">없으면 현황표에 미표시</span>
         </label>
-        <textarea class="inp" rows="3" placeholder="이번 주 특이사항을 입력하세요..." style="resize:none" oninput="S.note=this.value">${esc(S.note)}</textarea>
+        <textarea id="note-ta" class="inp" rows="3" placeholder="이번 주 특이사항을 입력하세요..." style="resize:none">${esc(S.note)}</textarea>
       </div>
       <button class="btn btn-p btn-lg" style="width:100%;justify-content:center" onclick="saveResource()">💾 리소스 저장</button>
     `:""}`;
@@ -624,6 +624,9 @@ function updEntry(mid,i,f,v){
 function saveResource(){
   if(!S.wS)return alert("시작일을 선택해주세요.");
   if(!S.team)return alert("팀을 선택해주세요.");
+  // ★ 저장 버튼 클릭 시 textarea 값을 직접 읽어서 S.note에 반영
+  const ta=document.getElementById("note-ta");
+  if(ta) S.note=ta.value;
   const teamM=S.members.filter(m=>m.team===S.team);
   const warn=teamM.filter(m=>totFor(m.id)!==100).map(m=>({memberId:m.id,name:m.name,total:totFor(m.id)}));
   if(warn.length){S.warnList=warn;render();return;}
