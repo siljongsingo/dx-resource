@@ -142,10 +142,11 @@ const S={
   planTab:"plan",
   planProjFilter:"all",
   planMonthStart:"", planMonthEnd:"",
-  planEditCell:null,     /* {memberId, weekStart, weekEnd} */
-  planEditData:{},       /* temp: memberId_weekStart → [{projectId,rate}] */
-  planData:[],           /* 독립 계획 데이터: [{weekStart,weekEnd,entries:[{memberId,allocations:[{projectId,rate}]}]}] */
-  planFullscreen:false,  /* 전체화면 모드 */
+  planEditCell:null,       /* 하위 호환용 — 더 이상 주 편집에 사용 안 함 */
+  planEditData:{},
+  planEditMember:null,     /* {memberId, rows:[{projectId,rate,wStart,wEnd,_id}]} */
+  planData:[],
+  planFullscreen:false,
 };
 
 /* ═══════════════════════════════════════
@@ -756,6 +757,10 @@ async function doSync(){
   S.syncing=true;S.syncMsg="";render();
   try{
     await loadData();
+    /* 로컬 planData가 있으면 GAS에도 업로드 (다른 기기에서 없는 경우 복원) */
+    if(S.planData&&S.planData.length>0){
+      await gasPost({action:"savePlan",data:S.planData});
+    }
     S.syncMsg="✅ 동기화 완료";
   }catch(e){S.syncMsg="⚠️ 동기화 실패";}
   S.syncing=false;render();
@@ -903,7 +908,6 @@ function buildPlanMap(){
   S.planData.forEach(r=>{
     (r.entries||[]).forEach(e=>{
       const key=e.memberId+"_"+r.weekStart;
-      /* 0% 포함 저장된 항목 모두 유지 */
       map[key]=(e.allocations||[]).filter(a=>a.projectId);
     });
   });
@@ -930,30 +934,38 @@ function savePlanCell(memberId,weekStart,weekEnd,allocations){
     S.planData=ex?S.planData.map(r=>r.weekStart===weekStart?rec:r):[...S.planData,rec];
   }
   LS.set("dx-plan",S.planData);
-  gasPost({action:"savePlan",data:S.planData}).catch(()=>{});
+  /* GAS 동기화는 syncPlanToGAS()에서 한 번에 처리 — 여기서는 호출 안 함 */
 }
 
-/* 기간 범위 일괄 저장 */
-function commitPlanRange(){
-  if(!S.planEditCell)return;
-  const{memberId,rangeEnd}=S.planEditCell;
-  if(!rangeEnd){commitPlanCell();return;}
-  const weekStart0=S.planEditCell.weekStart;
-  const key=memberId+"_"+weekStart0;
-  const allocations=S.planEditData[key]||[];
-  /* 범위 안의 모든 주차에 동일 데이터 저장 */
-  const allCols=[];
-  monthRange(S.planMonthStart,S.planMonthEnd).forEach(ym=>{
-    getWeeksInMonth(ym).forEach(w=>{allCols.push(w);});
-  });
-  let saving=false;
-  allCols.forEach(w=>{
-    if(w.start===weekStart0) saving=true;
-    if(saving) savePlanCell(memberId,w.start,w.end,allocations);
-    if(w.start===rangeEnd) saving=false;
-  });
-  S.planEditCell=null;render();
+/* GAS 동기화 — 저장 완료 후 명시적으로 한 번만 호출 */
+let _planSyncTimer=null;
+function syncPlanToGAS(){
+  /* 디바운스: 연속 저장 시 마지막 호출 후 800ms 뒤 1회만 전송 */
+  clearTimeout(_planSyncTimer);
+  _planSyncTimer=setTimeout(()=>{
+    const json=JSON.stringify(S.planData);
+    /* GAS JSONP URL 길이 제한 대비: 32KB 초과 시 경고 */
+    if(json.length>30000){
+      console.warn("planData가 큽니다. GAS 전송 실패 가능성 있음:",json.length,"bytes");
+    }
+    gasPost({action:"savePlan",data:S.planData})
+      .then(r=>{
+        if(r&&r.ok){
+          S.syncMsg="✅ 리소스 계획 저장 완료";
+        } else {
+          S.syncMsg="⚠️ GAS 저장 실패 (로컬은 유지)";
+        }
+        render();
+        setTimeout(()=>{S.syncMsg="";render();},3000);
+      })
+      .catch(()=>{
+        S.syncMsg="⚠️ 네트워크 오류 (로컬은 유지)";
+        render();
+        setTimeout(()=>{S.syncMsg="";render();},3000);
+      });
+  },800);
 }
+
 
 /* ── 기간 프리셋 ── */
 function setPlanPreset(p){
@@ -967,54 +979,112 @@ function setPlanPreset(p){
   else if(p==="year"){S.planMonthStart=y+"-01";S.planMonthEnd=y+"-12";}
   else if(p==="h2"){S.planMonthStart=y+"-07";S.planMonthEnd=y+"-12";}
   else if(p==="next"){S.planMonthStart=(y+1)+"-01";S.planMonthEnd=(y+1)+"-12";}
-  S.planEditCell=null;render();
+  S.planEditMember=null;S.planEditCell=null;render();
 }
 
-/* ── 셀 편집 ── */
-function openPlanCell(memberId,weekStart,weekEnd){
-  if(S.planEditCell){
-    const prev=S.planEditCell;
-    savePlanCell(prev.memberId,prev.weekStart,prev.weekEnd,S.planEditData[prev.memberId+"_"+prev.weekStart]||[]);
+/* ── 멤버 단위 편집 ── */
+function _getAllCols(){
+  const c=[];
+  monthRange(S.planMonthStart,S.planMonthEnd).forEach(ym=>{getWeeksInMonth(ym).forEach(w=>c.push(w));});
+  return c;
+}
+
+function openMemberEdit(memberId){
+  if(S.planEditMember&&S.planEditMember.memberId!==memberId) commitMemberEdit();
+  const allCols=_getAllCols();
+  /* 기존 데이터에서 프로젝트별 연속 블록 추출 */
+  const projBlocks={};
+  allCols.forEach(w=>{
+    const ex=S.planData.find(r=>r.weekStart===w.start);
+    const entry=ex?.entries?.find(e=>e.memberId===memberId);
+    (entry?.allocations||[]).filter(a=>a.projectId&&Number(a.rate)>0).forEach(a=>{
+      const pid=String(a.projectId);
+      if(!projBlocks[pid]) projBlocks[pid]=[];
+      const blocks=projBlocks[pid];
+      const last=blocks[blocks.length-1];
+      const prevColIdx=allCols.findIndex(x=>x.start===w.start)-1;
+      const prevCol=prevColIdx>=0?allCols[prevColIdx]:null;
+      if(last&&last.rate===Number(a.rate)&&last._lwStart===prevCol?.start){
+        last.wEnd=w.end;last._lwStart=w.start;
+      } else {
+        blocks.push({wStart:w.start,wEnd:w.end,rate:Number(a.rate),_lwStart:w.start});
+      }
+    });
+  });
+  let rows=[];
+  Object.entries(projBlocks).forEach(([pid,blocks])=>{
+    blocks.forEach(b=>{
+      rows.push({_id:Math.random().toString(36).slice(2),projectId:pid,rate:b.rate,wStart:b.wStart,wEnd:b.wEnd});
+    });
+  });
+  if(!rows.length){
+    const first=allCols[0],last=allCols[allCols.length-1];
+    rows=[{_id:Math.random().toString(36).slice(2),projectId:"",rate:"",wStart:first?.start||"",wEnd:last?.end||""}];
   }
-  S.planEditCell={memberId,weekStart,weekEnd,rangeEnd:weekStart};/* rangeEnd 기본=시작주 */
-  const ex=S.planData.find(r=>r.weekStart===weekStart);
-  const entry=ex?.entries?.find(e=>e.memberId===memberId);
-  /* 0% 포함 모든 저장 항목 로드 */
-  const existing=(entry?.allocations||[]).filter(a=>a.projectId);
-  S.planEditData[memberId+"_"+weekStart]=existing.length?existing.map(a=>({...a})):[{projectId:"",rate:""}];
+  S.planEditMember={memberId,rows};
+  S.planEditCell=null;
   render();
-  setTimeout(()=>{const el=document.getElementById("plan-edit-panel");if(el)el.scrollIntoView({behavior:"smooth",block:"nearest"});},60);
+  setTimeout(()=>{const el=document.getElementById("plan-member-edit");if(el)el.scrollIntoView({behavior:"smooth",block:"nearest"});},60);
 }
-function closePlanCell(){S.planEditCell=null;render();}
-function addPlanRow(){
-  if(!S.planEditCell)return;
-  const key=S.planEditCell.memberId+"_"+S.planEditCell.weekStart;
-  if(!S.planEditData[key])S.planEditData[key]=[];
-  S.planEditData[key].push({projectId:"",rate:""});render();
+
+function closeMemberEdit(){S.planEditMember=null;render();}
+
+function addMemberEditRow(){
+  if(!S.planEditMember)return;
+  const allCols=_getAllCols();
+  const first=allCols[0],last=allCols[allCols.length-1];
+  S.planEditMember.rows.push({_id:Math.random().toString(36).slice(2),projectId:"",rate:"",wStart:first?.start||"",wEnd:last?.end||""});
+  render();
 }
-function delPlanRow(idx){
-  if(!S.planEditCell)return;
-  const key=S.planEditCell.memberId+"_"+S.planEditCell.weekStart;
-  S.planEditData[key]=S.planEditData[key].filter((_,i)=>i!==idx);render();
+
+function delMemberEditRow(id){
+  if(!S.planEditMember)return;
+  S.planEditMember.rows=S.planEditMember.rows.filter(r=>r._id!==id);
+  render();
 }
-function updPlanRow(idx,field,val){
-  if(!S.planEditCell)return;
-  const key=S.planEditCell.memberId+"_"+S.planEditCell.weekStart;
-  if(!S.planEditData[key])return;
-  S.planEditData[key][idx][field]=val;
-  const sumEl=document.getElementById("plan-edit-sum");
-  if(sumEl){
-    const t=(S.planEditData[key]||[]).reduce((s,a)=>s+Number(a.rate||0),0);
-    sumEl.textContent="합계 "+t+"%";
-    sumEl.style.color=t===100?"var(--success)":t>100?"var(--danger)":"var(--warning)";
-  }
+
+function updMemberEditRow(id,field,val){
+  if(!S.planEditMember)return;
+  const row=S.planEditMember.rows.find(r=>r._id===id);
+  if(row){row[field]=val;}
 }
-function commitPlanCell(){
-  if(!S.planEditCell)return;
-  const{memberId,weekStart,weekEnd}=S.planEditCell;
-  savePlanCell(memberId,weekStart,weekEnd,S.planEditData[memberId+"_"+weekStart]||[]);
-  S.planEditCell=null;render();
+
+function commitMemberEdit(){
+  if(!S.planEditMember)return;
+  const{memberId,rows}=S.planEditMember;
+  const validRows=rows.filter(r=>r.projectId&&Number(r.rate)>0&&r.wStart&&r.wEnd&&r.wEnd>=r.wStart);
+  const allCols=_getAllCols();
+  /* 주차별 이 멤버의 allocations를 재계산 */
+  const weekAllocs={};
+  validRows.forEach(r=>{
+    allCols.filter(w=>w.start>=r.wStart&&w.start<=r.wEnd).forEach(w=>{
+      if(!weekAllocs[w.start]) weekAllocs[w.start]={weekEnd:w.end,allocs:[]};
+      weekAllocs[w.start].allocs=weekAllocs[w.start].allocs.filter(a=>String(a.projectId)!==String(r.projectId));
+      weekAllocs[w.start].allocs.push({projectId:Number(r.projectId),rate:Number(r.rate)});
+    });
+  });
+  /* 이 멤버가 있던 모든 기존 주차 + 새로 생긴 주차에 대해 갱신 */
+  const affected=new Set([
+    ...S.planData.map(r=>r.weekStart),
+    ...Object.keys(weekAllocs)
+  ]);
+  affected.forEach(ws=>{
+    const col=allCols.find(c=>c.start===ws);
+    savePlanCell(memberId,ws,col?.end||getFriday(ws),weekAllocs[ws]?.allocs||[]);
+  });
+  S.planEditMember=null;
+  syncPlanToGAS();
+  render();
 }
+
+/* 셀 클릭 → 멤버 편집 패널 */
+function openPlanCell(memberId){openMemberEdit(memberId);}
+function closePlanCell(){closeMemberEdit();}
+function commitPlanCell(){commitMemberEdit();}
+function commitPlanRange(){commitMemberEdit();}
+function addPlanRow(){addMemberEditRow();}
+function delPlanRow(idx){if(!S.planEditMember)return;const r=S.planEditMember.rows[idx];if(r)delMemberEditRow(r._id);}
+
 
 /* ── 렌더 ── */
 function renderPlan(){
@@ -1032,10 +1102,16 @@ function renderPlan(){
   });
 
   const planMap=buildPlanMap();
-  if(S.planEditCell){
-    const{memberId,weekStart}=S.planEditCell;
-    const key=memberId+"_"+weekStart;
-    planMap[memberId+"_"+weekStart]=(S.planEditData[key]||[]).filter(a=>a.projectId!==""&&Number(a.rate)>0).map(a=>({projectId:Number(a.projectId),rate:Number(a.rate)}));
+  /* 편집 중인 멤버의 미저장 데이터를 그리드에 미리 반영 */
+  if(S.planEditMember){
+    const{memberId,rows}=S.planEditMember;
+    const allCols2=[];
+    months.forEach(ym=>{getWeeksInMonth(ym).forEach(w=>allCols2.push(w));});
+    allCols2.forEach(w=>{
+      const newAllocs=rows.filter(r=>r.projectId&&Number(r.rate)>0&&r.wStart&&r.wEnd&&w.start>=r.wStart&&w.start<=r.wEnd)
+        .map(r=>({projectId:Number(r.projectId),rate:Number(r.rate)}));
+      planMap[memberId+"_"+w.start]=newAllocs;
+    });
   }
 
   function getPlanRate(memberId,weekStart){
@@ -1106,10 +1182,8 @@ function renderPlan(){
     const cells=cols.map(c=>{
       const allocs=(planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0);
       const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
-      const isActive=S.planEditCell?.memberId===m.id&&S.planEditCell?.weekStart===c.colKey;
-      const inRange=S.planEditCell?.memberId===m.id
-        &&c.colKey>=S.planEditCell.weekStart
-        &&c.colKey<=(S.planEditCell.rangeEnd||S.planEditCell.weekStart);
+      const isActive=S.planEditMember?.memberId===m.id;
+      const inRange=false; /* 멤버 단위 편집에서는 범위 하이라이트 불필요 */
 
       const cellBorder=isActive?"outline:2px solid var(--primary);outline-offset:-2px":"";
       const cellBg=isActive?"var(--primary-lt)":inRange?"rgba(37,99,235,0.05)":"";
@@ -1136,17 +1210,19 @@ function renderPlan(){
       /* ── 전체 보기: 프로젝트별 개별 막대 (세로 스택) ── */
       const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
       const totalBg=total>100?"#FFF0F0":total===100?"#F0FDF4":"#FFFBEB";
+      const totalMM_cell=allocs.reduce((s,a)=>s+toMM(a.rate),0);
 
       const barRows=allocs.map(a=>{
         const r=Number(a.rate);
         const color=projColor(a.projectId);
         const pct=Math.min(r,100);
-        const tip=`${gname(a.projectId)}: ${r}%`;
+        const mmVal=toMM(r);
+        const tip=`${gname(a.projectId)}: ${r}% · ${fmtMM(mmVal)}`;
         return`<div title="${esc(tip)}" style="display:flex;align-items:center;gap:3px;margin-bottom:2px">
           <div style="flex:1;height:10px;border-radius:2px;overflow:hidden;background:rgba(0,0,0,0.07)">
             <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;min-width:3px"></div>
           </div>
-          <span style="font-size:9px;font-weight:700;color:${color};min-width:22px;text-align:right">${r}%</span>
+          <span style="font-size:9px;font-weight:700;color:${color};min-width:28px;text-align:right">${r}%</span>
         </div>`;
       }).join("");
 
@@ -1154,95 +1230,92 @@ function renderPlan(){
         style="width:${COL_W}px;padding:4px 5px;border-left:1px solid var(--bd);cursor:pointer;vertical-align:top;
           background:${cellBg||totalBg};${cellBorder}">
         ${barRows}
-        <div style="text-align:right;font-size:9px;font-weight:800;color:${totalColor};border-top:1px solid rgba(0,0,0,0.08);padding-top:1px;margin-top:1px">합계 ${total}%</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(0,0,0,0.08);padding-top:2px;margin-top:1px">
+          <span style="font-size:8px;color:var(--t3);font-weight:600">${fmtMM(totalMM_cell)}</span>
+          <span style="font-size:9px;font-weight:800;color:${totalColor}">${total}%</span>
+        </div>
       </td>`;
     }).join("");
 
     return`<tr>
-      <td style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.name)}</td>
+      <td onclick="openMemberEdit(${m.id})" style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd);cursor:pointer;color:${S.planEditMember?.memberId===m.id?"var(--primary)":"var(--t1)"}">${esc(m.name)}${S.planEditMember?.memberId===m.id?` <span style="font-size:10px">✎</span>`:""}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--t2);white-space:nowrap;position:sticky;left:70px;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.rank)}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:120px;z-index:3;background:var(--bg-card);border-right:2px solid var(--bd-md)">${esc(m.team)}</td>
       ${cells}
     </tr>`;
   }).join("");
 
-  const emptyMsg="";
-  /* ── 편집 패널 ── */
-  let editPanel="";
-  if(S.planEditCell){
-    const{memberId,weekStart,weekEnd,rangeEnd}=S.planEditCell;
-    const m=S.members.find(x=>x.id===memberId);
-    const key=memberId+"_"+weekStart;
-    const rows=S.planEditData[key]||[{projectId:"",rate:""}];
-    const total=rows.reduce((s,a)=>s+Number(a.rate||0),0);
-    const sumColor=total===100?"var(--success)":total>100?"var(--danger)":"var(--warning)";
 
-    /* 범위 선택용 주차 목록 */
+  const emptyMsg="";
+  /* ── 멤버 편집 패널 ── */
+  let editPanel="";
+  if(S.planEditMember){
+    const{memberId,rows}=S.planEditMember;
+    const m=S.members.find(x=>x.id===memberId);
     const allWeeks=[];
     months.forEach(ym=>{getWeeksInMonth(ym).forEach(w=>{allWeeks.push(w);});});
-    const startIdx=allWeeks.findIndex(w=>w.start===weekStart);
-    const rangeWeekOpts=allWeeks.slice(startIdx).map(w=>`<option value="${w.start}"${w.start===rangeEnd?" selected":""}>${w.start.slice(5).replace("-","/")} ~ ${w.end.slice(5).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
+    const weekOpts=allWeeks.map(w=>`<option value="${w.start}">${w.start.slice(2,7).replace("-","/")} ~ ${w.end.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
 
-    const rowsHTML=rows.map((row,i)=>`
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-        <select class="inp" style="flex:1;min-width:180px;font-size:12px" onchange="updPlanRow(${i},'projectId',this.value)">
-          <option value="">프로젝트 선택</option>
-          <optgroup label="── 상용">${sortedProjects("상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[상용] ${esc(p.name)}</option>`).join("")}</optgroup>
-          <optgroup label="── 비상용">${sortedProjects("비상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[비상용] ${esc(p.name)}</option>`).join("")}</optgroup>
-        </select>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" class="inp" style="width:72px;text-align:center;font-size:14px;font-weight:700" min="0" max="200"
-            value="${row.rate}" placeholder="0" oninput="updPlanRow(${i},'rate',this.value)"/>
-          <span style="font-size:13px;color:var(--t3);font-weight:600">%</span>
-          <button class="btn btn-d btn-sm" onclick="delPlanRow(${i})">×</button>
-        </div>
-      </div>`).join("");
-
-    const isSingleWeek=rangeEnd===weekStart;
-    editPanel=`
-    <div id="plan-edit-panel" class="card" style="padding:16px;margin-bottom:14px;border:2px solid var(--primary-bd)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <div>
-          <span style="font-weight:700;font-size:14px;color:var(--primary)">✎ ${esc(m?.name||"")} · ${esc(m?.team||"")}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span id="plan-edit-sum" style="font-weight:700;font-size:13px;color:${sumColor}">합계 ${total}%</span>
-          <button class="btn btn-g btn-sm" onclick="closePlanCell()">취소</button>
-        </div>
-      </div>
-
-      <!-- 기간 설정 -->
-      <div style="background:var(--bg-sub2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:12px">
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-          <div>
-            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">시작 주차</div>
-            <div style="font-size:12px;font-weight:700;color:var(--t1)">${weekStart.slice(5).replace("-","/")} ~ ${weekEnd.slice(5).replace("-","/")} (클릭한 셀)</div>
-          </div>
-          <div style="font-size:16px;color:var(--t4)">→</div>
-          <div style="flex:1;min-width:200px">
-            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">종료 주차 <span style="font-weight:400;color:var(--t4)">(같은 투입률을 연속 적용)</span></div>
-            <select class="inp" style="font-size:12px" onchange="S.planEditCell.rangeEnd=this.value;render()">
-              ${rangeWeekOpts}
+    const rowsHTML=rows.map((row,ri)=>{
+      const color=row.projectId?projColor(row.projectId):"var(--t4)";
+      const startOpts=allWeeks.map(w=>`<option value="${w.start}"${w.start===row.wStart?" selected":""}>${w.start.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
+      const endOpts=allWeeks.map(w=>`<option value="${w.start}"${w.start===row.wEnd||(w.end===row.wEnd&&!row.wEnd_isStart)?" selected":""}>${w.end.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
+      /* 종료주 opt: wEnd가 w.end인 경우 선택 */
+      const endOpts2=allWeeks.map(w=>`<option value="${w.end}"${w.end===row.wEnd?" selected":""}>${w.end.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
+      return`<div style="background:var(--bg-sub2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid ${color}">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
+          <div style="flex:2;min-width:200px">
+            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">프로젝트</div>
+            <select class="inp" style="font-size:12px" onchange="updMemberEditRow('${row._id}','projectId',this.value);render()">
+              <option value="">프로젝트 선택</option>
+              <optgroup label="── 상용">${sortedProjects("상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[상용] ${esc(p.name)}</option>`).join("")}</optgroup>
+              <optgroup label="── 비상용">${sortedProjects("비상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[비상용] ${esc(p.name)}</option>`).join("")}</optgroup>
             </select>
           </div>
-          <div style="font-size:11px;color:${isSingleWeek?"var(--t3)":"var(--primary)"};font-weight:${isSingleWeek?"400":"700"};white-space:nowrap;align-self:flex-end;padding-bottom:4px">
-            ${isSingleWeek?"단일 주차":"▶ "+allWeeks.slice(startIdx,allWeeks.findIndex(w=>w.start===rangeEnd)+1).length+"주 일괄 적용"}
+          <div style="width:90px">
+            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">투입률</div>
+            <div style="display:flex;align-items:center;gap:4px">
+              <input type="number" class="inp" style="text-align:center;font-size:14px;font-weight:700" min="0" max="200"
+                value="${row.rate}" placeholder="0" oninput="updMemberEditRow('${row._id}','rate',this.value)"/>
+              <span style="font-size:12px;color:var(--t3);font-weight:600">%</span>
+            </div>
           </div>
+          <button class="btn btn-d btn-sm" style="align-self:flex-end;margin-bottom:2px" onclick="delMemberEditRow('${row._id}');render()">×</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:160px">
+            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">📅 시작 주차</div>
+            <select class="inp" style="font-size:11px" onchange="updMemberEditRow('${row._id}','wStart',this.value);render()">
+              ${allWeeks.map(w=>`<option value="${w.start}"${w.start===row.wStart?" selected":""}>${w.start.slice(2,7).replace("-","/")}~${w.end.slice(5).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("")}
+            </select>
+          </div>
+          <div style="font-size:14px;color:var(--t4);align-self:flex-end;padding-bottom:6px">~</div>
+          <div style="flex:1;min-width:160px">
+            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">📅 종료 주차</div>
+            <select class="inp" style="font-size:11px" onchange="updMemberEditRow('${row._id}','wEnd',this.value);render()">
+              ${allWeeks.map(w=>`<option value="${w.end}"${w.end===row.wEnd?" selected":""}>${w.start.slice(2,7).replace("-","/")}~${w.end.slice(5).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("")}
+            </select>
+          </div>
+          ${row.wStart&&row.wEnd&&row.wEnd>=row.wStart?`<div style="font-size:10px;color:var(--primary);font-weight:700;align-self:flex-end;padding-bottom:6px;white-space:nowrap">▶ ${allWeeks.filter(w=>w.start>=row.wStart&&w.end<=row.wEnd).length}주</div>`:""}
+        </div>
+      </div>`;
+    }).join("");
+
+    editPanel=`
+    <div id="plan-member-edit" class="card" style="padding:16px;margin-bottom:14px;border:2px solid var(--primary-bd)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <span style="font-weight:700;font-size:15px;color:var(--primary)">✎ ${esc(m?.name||"")} · ${esc(m?.team||"")} · ${esc(m?.rank||"")}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="member-edit-note" style="font-size:12px;font-weight:600;color:var(--t3)"></span>
+          <button class="btn btn-g btn-sm" onclick="closeMemberEdit()">취소</button>
+          <button class="btn btn-p" onclick="commitMemberEdit()">💾 저장</button>
         </div>
       </div>
-
-      <!-- 프로젝트 투입률 입력 -->
       ${rowsHTML}
-      <button style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;font-weight:600;padding:2px 0;margin-bottom:10px" onclick="addPlanRow()">+ 프로젝트 추가</button>
-
-      ${total>0&&total!==100?`<div class="alert alert-w" style="margin-bottom:10px"><span>⚠️</span><span>투입율 합계 ${total}%</span></div>`:""}
-      ${total===100?`<div class="alert alert-s" style="margin-bottom:10px"><span>✅</span><span>투입율 합계 100%</span></div>`:""}
-
-      <button class="btn btn-p" style="width:100%;justify-content:center;font-size:13px" onclick="commitPlanRange()">
-        💾 ${isSingleWeek?"저장":"선택 기간 일괄 저장 ("+allWeeks.slice(startIdx,allWeeks.findIndex(w=>w.start===rangeEnd)+1).length+"주)"}
-      </button>
+      <button style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;font-weight:600;padding:4px 0" onclick="addMemberEditRow();render()">+ 프로젝트 추가</button>
     </div>`;
   }
+
 
   /* 프리셋 버튼 */
   const now2=new Date();const ty=now2.getFullYear();
@@ -1253,25 +1326,63 @@ function renderPlan(){
   const projOpts=`<option value="all">전체 프로젝트</option>`
     +S.projects.map(p=>`<option value="${p.id}"${S.planProjFilter==p.id?" selected":""}>${esc(p.name)}</option>`).join("");
 
-  /* 프로젝트 요약 카드 (투입 있는 것만) */
+  /* ── MM 계산 헬퍼 ──
+     각 주차 1명 100% = 1주 = 1/4.33 MM (월평균 4.33주)
+     단, 100% 초과도 1MM로 cap → min(rate,100)/100 / 4.33
+     합계: 해당 프로젝트에 투입된 모든 (멤버×주차)의 MM 합산 */
+  const WEEKS_PER_MONTH=4.33;
+  function toMM(rate){
+    /* rate: %, 1주 기준. 100% 초과는 100%로 cap */
+    return Math.min(Number(rate),100)/100/WEEKS_PER_MONTH;
+  }
+  function fmtMM(mm){
+    /* 소수점 2자리, 불필요한 뒤 0 제거 */
+    return parseFloat(mm.toFixed(2))+"MM";
+  }
+
+  /* 프로젝트 요약 카드 — MM 합계 + 투입 기간 포함 */
   const projCards=S.projects.map(p=>{
-    let tot=0,cnt=0;const inv=new Set();
-    S.members.forEach(m=>{cols.forEach(c=>{
-      const al=planMap[m.id+"_"+c.colKey]||[];
-      const a=al.find(x=>String(x.projectId)===String(p.id));
-      if(a&&Number(a.rate)>0){tot+=Number(a.rate);cnt++;inv.add(m.id);}
-    });});
+    let totalMM=0;
+    const inv=new Set();
+    const weekStarts=[];
+
+    S.members.forEach(m=>{
+      cols.forEach(c=>{
+        const al=planMap[m.id+"_"+c.colKey]||[];
+        const a=al.find(x=>String(x.projectId)===String(p.id));
+        if(a&&Number(a.rate)>0){
+          totalMM+=toMM(a.rate);
+          inv.add(m.id);
+          if(!weekStarts.includes(c.colKey)) weekStarts.push(c.colKey);
+        }
+      });
+    });
     if(!inv.size)return"";
-    const avg=Math.round(tot/cnt);
+
+    weekStarts.sort();
+    const periodStart=weekStarts[0];
+    const periodEndCol=cols.find(c=>c.colKey===weekStarts[weekStarts.length-1]);
+    const periodEnd=periodEndCol?periodEndCol.weekEnd:weekStarts[weekStarts.length-1];
+    const periodStr=periodStart.slice(2,7).replace("-","/")+` ~ `+periodEnd.slice(2,7).replace("-","/");
+
     const bc=p.type==="상용"?"bdg-p":"bdg-dim";
-    return`<div class="card" style="padding:12px 14px;min-width:175px;flex:1 1 175px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+    const color=projColor(p.id);
+
+    return`<div class="card" style="padding:12px 14px;min-width:200px;flex:1 1 200px;border-left:3px solid ${color}">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
         <span class="badge ${bc}" style="font-size:10px">${p.type}</span>
-        <span style="font-size:11px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="${esc(p.name)}">${esc(p.name)}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="${esc(p.name)}">${esc(p.name)}</span>
       </div>
-      <div style="display:flex;gap:16px">
-        <div><div style="font-size:10px;color:var(--t3);margin-bottom:2px">평균 투입률</div><div style="font-size:18px;font-weight:700;color:var(--primary)">${avg}%</div></div>
-        <div><div style="font-size:10px;color:var(--t3);margin-bottom:2px">투입 인원</div><div style="font-size:18px;font-weight:700;color:var(--t1)">${inv.size}명</div></div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">📅 ${periodStr}</div>
+      <div style="display:flex;gap:14px;align-items:flex-end">
+        <div>
+          <div style="font-size:10px;color:var(--t3);margin-bottom:1px">투입 인원</div>
+          <div style="font-size:20px;font-weight:800;color:var(--t1);line-height:1">${inv.size}<span style="font-size:11px;font-weight:500;color:var(--t3);margin-left:2px">명</span></div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--t3);margin-bottom:1px">투입 MM 합계</div>
+          <div style="font-size:20px;font-weight:800;color:${color};line-height:1">${fmtMM(totalMM)}</div>
+        </div>
       </div>
     </div>`;
   }).filter(Boolean).join("");
@@ -1474,6 +1585,7 @@ function printPlanPDF(){
       if(!allocs.length)return`<td style="border:1px solid #e5e7eb;width:80px;height:28px"></td>`;
       const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
       const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
+      const cellMM=allocs.reduce((s,a)=>s+Math.min(Number(a.rate),100)/100/4.33,0);
       const barsHtml=allocs.map(a=>{
         const r=Number(a.rate);
         const color=pc(a.projectId);
@@ -1486,7 +1598,10 @@ function printPlanPDF(){
       }).join("");
       return`<td style="border:1px solid #e5e7eb;padding:2px 3px;vertical-align:top;background:${total===100?"#F0FDF4":total>100?"#FFF0F0":"#FFFBEB"}">
         ${barsHtml}
-        <div style="text-align:right;font-size:7px;font-weight:800;color:${totalColor};border-top:1px solid #ddd;padding-top:1px">합계 ${total}%</div>
+        <div style="display:flex;justify-content:space-between;border-top:1px solid #ddd;padding-top:1px;margin-top:1px">
+          <span style="font-size:6px;color:#6b7280;font-weight:600">${parseFloat(cellMM.toFixed(2))}MM</span>
+          <span style="font-size:7px;font-weight:800;color:${totalColor}">${total}%</span>
+        </div>
       </td>`;
     }).join("");
     return`<tr>
@@ -1497,6 +1612,28 @@ function printPlanPDF(){
     </tr>`;
   }).join("");
 
+  /* 프로젝트별 MM 요약 테이블 (PDF 하단) */
+  const projSummaryRows=S.projects.map(p=>{
+    let pMM=0;const pInv=new Set();const pWeeks=[];
+    S.members.forEach(m=>{cols.forEach(c=>{
+      const al=planMap[m.id+"_"+c.colKey]||[];
+      const a=al.find(x=>String(x.projectId)===String(p.id));
+      if(a&&Number(a.rate)>0){pMM+=Math.min(Number(a.rate),100)/100/4.33;pInv.add(m.id);if(!pWeeks.includes(c.colKey))pWeeks.push(c.colKey);}
+    });});
+    if(!pInv.size)return"";
+    pWeeks.sort();
+    const ps=pWeeks[0].slice(2,7).replace("-","/");
+    const peCol=cols.find(c=>c.colKey===pWeeks[pWeeks.length-1]);
+    const pe=(peCol?peCol.weekEnd:pWeeks[pWeeks.length-1]).slice(2,7).replace("-","/");
+    return`<tr>
+      <td style="border:1px solid #ddd;padding:3px 6px;font-size:8px;font-weight:700">${p.name}</td>
+      <td style="border:1px solid #ddd;padding:3px 6px;font-size:8px;text-align:center">${p.type}</td>
+      <td style="border:1px solid #ddd;padding:3px 6px;font-size:8px;text-align:center">${pInv.size}명</td>
+      <td style="border:1px solid #ddd;padding:3px 6px;font-size:8px;text-align:center;font-weight:700;color:${pc(p.id)}">${parseFloat(pMM.toFixed(2))}MM</td>
+      <td style="border:1px solid #ddd;padding:3px 6px;font-size:8px;text-align:center;color:#6b7280">${ps} ~ ${pe}</td>
+    </tr>`;
+  }).filter(Boolean).join("");
+
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>DX 리소스 투입 계획</title>
   <style>
@@ -1506,6 +1643,7 @@ function printPlanPDF(){
     .sub{font-size:8px;color:#6b7280;margin-bottom:6px}
     .legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;padding:4px 6px;background:#f8fafc;border-radius:4px;border:1px solid #e5e7eb}
     table{width:100%;border-collapse:collapse}
+    h3{font-size:10px;font-weight:700;color:#1e3a5f;margin:10px 0 4px}
     @media print{
       @page{margin:8mm;size:A3 landscape}
       body{padding:0}
@@ -1527,6 +1665,21 @@ function printPlanPDF(){
     </thead>
     <tbody>${memberRowsHtml}</tbody>
   </table>
+
+  <h3>프로젝트별 MM 요약</h3>
+  <table style="width:auto;min-width:400px">
+    <thead>
+      <tr style="background:#1e3a5f">
+        <th style="color:#fff;padding:4px 8px;border:1px solid #ccc;font-size:8px;text-align:left">프로젝트명</th>
+        <th style="color:#fff;padding:4px 6px;border:1px solid #ccc;font-size:8px;text-align:center">구분</th>
+        <th style="color:#fff;padding:4px 6px;border:1px solid #ccc;font-size:8px;text-align:center">투입 인원</th>
+        <th style="color:#fff;padding:4px 6px;border:1px solid #ccc;font-size:8px;text-align:center">투입 MM 합계</th>
+        <th style="color:#fff;padding:4px 8px;border:1px solid #ccc;font-size:8px;text-align:center">투입 기간</th>
+      </tr>
+    </thead>
+    <tbody>${projSummaryRows}</tbody>
+  </table>
+
   <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
   </body></html>`;
 
