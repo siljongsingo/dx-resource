@@ -247,16 +247,16 @@ function render(){
   /* 전체화면 모드: nav 없이 plan 콘텐츠만 브라우저 창 꽉 채우기 */
   if(S.planFullscreen&&S.page==="plan"){
     document.body.style.overflow="hidden";
-    document.getElementById("app").innerHTML=`
-      <div id="plan-fs-wrap" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;overflow:hidden">
-        ${renderPlan()}
-      </div>`;
+    const planHTML=renderPlan();
+    document.getElementById("app").innerHTML=
+      '<div id="plan-fs-wrap" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;overflow:hidden">'+
+      planHTML+'</div>';
     bindEvents();
     return;
   }
   document.body.style.overflow="";
   const body=S.page==="main"?renderMain():S.page==="plan"?renderPlan():renderInput();
-  document.getElementById("app").innerHTML=renderNav()+`<div style="max-width:1200px;margin:0 auto;padding:20px">${body}</div>`+renderToast()+renderWarnModal();
+  document.getElementById("app").innerHTML=renderNav()+'<div style="max-width:1200px;margin:0 auto;padding:20px">'+body+'</div>'+renderToast()+renderWarnModal();
   bindEvents();
 }
 
