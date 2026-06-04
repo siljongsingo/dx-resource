@@ -145,6 +145,7 @@ const S={
   planEditCell:null,     /* {memberId, weekStart, weekEnd} */
   planEditData:{},       /* temp: memberId_weekStart → [{projectId,rate}] */
   planData:[],           /* 독립 계획 데이터: [{weekStart,weekEnd,entries:[{memberId,allocations:[{projectId,rate}]}]}] */
+  planFullscreen:false,  /* 전체화면 모드 */
 };
 
 /* ═══════════════════════════════════════
@@ -222,6 +223,17 @@ async function loadData(){
 ═══════════════════════════════════════ */
 function render(){
   document.documentElement.setAttribute("data-theme",S.dark?"dark":"");
+  /* 전체화면 모드: nav 없이 plan 콘텐츠만 브라우저 창 꽉 채우기 */
+  if(S.planFullscreen&&S.page==="plan"){
+    document.body.style.overflow="hidden";
+    document.getElementById("app").innerHTML=`
+      <div id="plan-fs-wrap" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;overflow:hidden">
+        ${renderPlan()}
+      </div>`;
+    bindEvents();
+    return;
+  }
+  document.body.style.overflow="";
   const body=S.page==="main"?renderMain():S.page==="plan"?renderPlan():renderInput();
   document.getElementById("app").innerHTML=renderNav()+`<div style="max-width:1200px;margin:0 auto;padding:20px">${body}</div>`+renderToast()+renderWarnModal();
   bindEvents();
@@ -1039,20 +1051,29 @@ function renderPlan(){
     return{bg:"var(--danger-lt)",fg:"var(--danger)",bold:true};
   }
 
-  /* 프로젝트 고유 색상 — 진하고 명확한 팔레트 */
+  /* 프로젝트 고유 색상 — id 순서대로 색조 최대 분산 */
+  /* id:1  별내키즈파크     → 파랑      */
+  /* id:2  내부-LG         → 빨강      */
+  /* id:3  내부-신정호      → 초록      */
+  /* id:4  내부-신세계      → 주황      */
+  /* id:5  내부-더파크      → 보라      */
+  /* id:6  내부-고성공룡    → 청록      */
+  /* id:7  내부-DX본부      → 핫핑크    */
+  /* id:8  롯데 로리캐슬    → 황록(라임) */
+  /* id:9  내부-AI R&D     → 갈색      */
   const PROJ_COLORS=[
-    "#2563EB",/* 파랑 */
-    "#16A34A",/* 초록 */
-    "#DC2626",/* 빨강 */
-    "#D97706",/* 주황 */
-    "#7C3AED",/* 보라 */
-    "#0891B2",/* 청록 */
-    "#DB2777",/* 핑크 */
-    "#65A30D",/* 연두 */
-    "#EA580C",/* 진주황 */
-    "#4F46E5",/* 인디고 */
-    "#0F766E",/* 틸 */
-    "#BE123C",/* 크림슨 */
+    "#1D4ED8",/* id1  파랑       */
+    "#B91C1C",/* id2  빨강       */
+    "#15803D",/* id3  초록       */
+    "#EA580C",/* id4  주황       */
+    "#7E22CE",/* id5  보라       */
+    "#0E7490",/* id6  청록       */
+    "#BE185D",/* id7  핫핑크     */
+    "#4D7C0F",/* id8  황록(라임) */
+    "#92400E",/* id9  갈색       */
+    "#0F172A",/* id10 다크네이비  */
+    "#065F46",/* id11 다크틸     */
+    "#1E1B4B",/* id12 다크인디고 */
   ];
   function projColor(pid){
     const idx=S.projects.findIndex(p=>p.id===Number(pid));
@@ -1255,7 +1276,9 @@ function renderPlan(){
     </div>`;
   }).filter(Boolean).join("");
 
-  /* 현재 기간에 실제 투입된 프로젝트만 범례 표시 */
+  const isFS=S.planFullscreen;
+
+  /* 현재 기간 실제 투입된 프로젝트만 범례 */
   const usedProjIds=new Set();
   S.members.forEach(m=>{cols.forEach(c=>{
     (planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0).forEach(a=>usedProjIds.add(Number(a.projectId)));
@@ -1266,44 +1289,66 @@ function renderPlan(){
       ${esc(p.name)}
     </span>`).join("");
 
+  /* 전체화면 레이아웃 래퍼 스타일 */
+  const outerStyle=isFS
+    ?"display:flex;flex-direction:column;height:100vh;padding:12px 16px;gap:8px;overflow:hidden"
+    :"";
+
+  /* 그리드 영역 높이: 전체화면이면 남은 공간을 모두 채움 */
+  const gridCardStyle=isFS
+    ?"padding:0;overflow:hidden;flex:1;min-height:0;display:flex;flex-direction:column"
+    :"padding:0;overflow:hidden";
+
+  const scrollStyle=isFS
+    ?"overflow-x:auto;overflow-y:auto;flex:1;min-height:0;-webkit-overflow-scrolling:touch"
+    :"overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch";
+
   return`
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+  <div style="${outerStyle}">
+
+  <!-- 헤더 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;${isFS?"flex-shrink:0":"margin-bottom:16px"}">
     <div>
-      <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em">📅 리소스 투입 계획</h1>
-      <p style="font-size:11px;color:var(--t3);margin-top:2px">투입현황(주간보고)과 별개로 운영됩니다. 셀 클릭으로 수시 편집 가능합니다.</p>
+      <h1 style="font-size:${isFS?"16px":"20px"};font-weight:700;letter-spacing:-.02em">📅 리소스 투입 계획</h1>
+      ${isFS?"":`<p style="font-size:11px;color:var(--t3);margin-top:2px">투입현황(주간보고)과 별개로 운영됩니다. 셀 클릭으로 수시 편집 가능합니다.</p>`}
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-g btn-sm" onclick="exportPlanToExcel()">⬇️ Excel</button>
       <button class="btn btn-g btn-sm" onclick="printPlanPDF()">🖨️ PDF 출력</button>
-      <button class="btn btn-g btn-sm" onclick="togglePlanFullscreen()" id="btn-fullscreen">⛶ 전체화면</button>
+      <button class="btn btn-p btn-sm" onclick="S.planFullscreen=!S.planFullscreen;render()" id="btn-fullscreen">
+        ${isFS?"✕ 전체화면 닫기":"⛶ 전체화면"}
+      </button>
     </div>
   </div>
 
-  <div class="card" style="padding:14px 16px;margin-bottom:14px">
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap;margin-right:2px">빠른 기간</span>
-      ${presetBtns}
-    </div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+  <!-- 컨트롤 (전체화면에서는 한 줄로 압축) -->
+  <div class="card" style="padding:${isFS?"8px 12px":"14px 16px"};${isFS?"flex-shrink:0":""};margin-bottom:${isFS?"0":"14px"}">
+    ${isFS?"":"<div style='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px'><span style='font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap;margin-right:2px'>빠른 기간</span>"+presetBtns+"</div>"}
+    <div style="display:flex;gap:${isFS?"8px":"12px"};flex-wrap:wrap;align-items:flex-end">
       <div><label class="lbl">📅 시작 월</label>
-        <input type="month" class="inp" style="width:148px" value="${S.planMonthStart}" onchange="S.planMonthStart=this.value;S.planEditCell=null;render()"/></div>
+        <input type="month" class="inp" style="width:${isFS?"130px":"148px"}" value="${S.planMonthStart}" onchange="S.planMonthStart=this.value;S.planEditCell=null;render()"/></div>
       <div><label class="lbl">📅 종료 월</label>
-        <input type="month" class="inp" style="width:148px" value="${S.planMonthEnd}" onchange="S.planMonthEnd=this.value;S.planEditCell=null;render()"/></div>
+        <input type="month" class="inp" style="width:${isFS?"130px":"148px"}" value="${S.planMonthEnd}" onchange="S.planMonthEnd=this.value;S.planEditCell=null;render()"/></div>
       <div><label class="lbl">📁 프로젝트 필터</label>
-        <select class="inp" style="min-width:200px" onchange="S.planProjFilter=this.value;render()">${projOpts}</select></div>
-      <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
+        <select class="inp" style="min-width:180px" onchange="S.planProjFilter=this.value;render()">${projOpts}</select></div>
+      ${isFS?"":`<div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
         <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#F0FDF4;border:1px solid #16A34A;display:inline-block"></span>100%</span>
         <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#FFFBEB;border:1px solid #D97706;display:inline-block"></span>&lt;100%</span>
         <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#FFF0F0;border:1px solid #DC2626;display:inline-block"></span>&gt;100%</span>
-      </div>
+      </div>`}
+      ${isFS?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${presetBtns}
+      </div>`:""}
     </div>
   </div>
 
   ${editPanel}
-  ${projCards?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${projCards}</div>`:""}
+
+  <!-- 프로젝트 요약 카드 (전체화면에서는 숨김) -->
+  ${isFS?"":projCards?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${projCards}</div>`:""}
 
   <!-- 범례: 투입된 프로젝트만 -->
-  ${legendItems?`<div class="card" style="padding:8px 14px;margin-bottom:10px">
+  ${legendItems?`<div class="card" style="padding:6px 14px;${isFS?"flex-shrink:0":""};margin-bottom:${isFS?"0":"10px"}">
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
       <span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap">범례</span>
       ${legendItems}
@@ -1311,8 +1356,8 @@ function renderPlan(){
   </div>`:""}
 
   <!-- 그리드 -->
-  <div class="card" style="padding:0;overflow:hidden" id="plan-grid-card">
-    <div id="plan-scroll" style="overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch">
+  <div class="card" style="${gridCardStyle}" id="plan-grid-card">
+    <div id="plan-scroll" style="${scrollStyle}">
       <table id="plan-tbl" style="border-collapse:collapse;table-layout:fixed;width:max-content">
         <thead style="position:sticky;top:0;z-index:10">
           <tr>
@@ -1331,7 +1376,7 @@ function renderPlan(){
         <tbody>${memberRows}</tbody>
       </table>
     </div>
-    <div style="padding:5px 12px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:6px;background:var(--bg-sub2)">
+    <div style="padding:5px 12px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:6px;background:var(--bg-sub2);${isFS?"flex-shrink:0":""}">
       <span style="font-size:10px;color:var(--t4)">← 좌우 스크롤</span>
       <div style="flex:1"></div>
       <button class="btn btn-g btn-sm" onclick="document.getElementById('plan-scroll').scrollBy({left:-${COL_W*4},behavior:'smooth'})">◀ 4주</button>
@@ -1339,9 +1384,11 @@ function renderPlan(){
     </div>
   </div>
 
-  <p style="font-size:11px;color:var(--t4);margin-top:8px">
+  ${isFS?"":`<p style="font-size:11px;color:var(--t4);margin-top:8px">
     💡 <strong style="color:var(--t3)">셀 클릭</strong> → 투입률 입력 &nbsp;·&nbsp; 각 막대에 마우스를 올리면 프로젝트명과 투입률 표시
-  </p>`;
+  </p>`}
+
+  </div>`;
 }
 
 /* ── Excel 내보내기 ── */
@@ -1382,35 +1429,15 @@ function exportPlanToExcel(){
   document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1000);
 }
-/* ── 전체화면 토글 ── */
+/* ── 전체화면: S.planFullscreen 상태로 render 재호출 ── */
 function togglePlanFullscreen(){
-  const el=document.getElementById("plan-grid-card");
-  const btn=document.getElementById("btn-fullscreen");
-  if(!el)return;
-  if(!document.fullscreenElement){
-    el.requestFullscreen().then(()=>{
-      el.style.background="var(--bg)";
-      el.style.padding="16px";
-      el.style.overflowY="auto";
-      const sc=document.getElementById("plan-scroll");
-      if(sc)sc.style.maxHeight="calc(100vh - 80px)";
-      if(btn)btn.textContent="✕ 전체화면 닫기";
-    }).catch(()=>{});
-  } else {
-    document.exitFullscreen();
-    if(btn)btn.textContent="⛶ 전체화면";
+  S.planFullscreen=!S.planFullscreen;
+  render();
+  if(S.planFullscreen){
+    /* 전체화면 진입 후 스크롤 위치 맨 위로 */
+    setTimeout(()=>window.scrollTo(0,0),30);
   }
 }
-document.addEventListener("fullscreenchange",()=>{
-  if(!document.fullscreenElement){
-    const btn=document.getElementById("btn-fullscreen");
-    if(btn)btn.textContent="⛶ 전체화면";
-    const el=document.getElementById("plan-grid-card");
-    if(el){el.style.padding="";el.style.overflowY="";}
-    const sc=document.getElementById("plan-scroll");
-    if(sc)sc.style.maxHeight="";
-  }
-});
 
 /* ── PDF 출력 ── */
 function printPlanPDF(){
@@ -1422,7 +1449,7 @@ function printPlanPDF(){
     getWeeksInMonth(ym).forEach(w=>{cols.push({monthLabel:m+"월",weekLabel:w.label,weekStart:w.start,weekEnd:w.end,colKey:w.start});});
   });
   const planMap=buildPlanMap();
-  const PROJ_COLORS_PDF=["#2563EB","#16A34A","#DC2626","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#EA580C","#4F46E5","#0F766E","#BE123C"];
+  const PROJ_COLORS_PDF=["#1D4ED8","#B91C1C","#15803D","#EA580C","#7E22CE","#0E7490","#BE185D","#4D7C0F","#92400E","#0F172A","#065F46","#1E1B4B"];
   const pc=pid=>{const idx=S.projects.findIndex(p=>p.id===Number(pid));return PROJ_COLORS_PDF[((idx%12)+12)%12];};
 
   /* month colspan */
