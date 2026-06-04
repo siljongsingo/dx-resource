@@ -163,6 +163,26 @@ const gname=pid=>{const p=S.projects.find(x=>x.id===Number(pid));return p?p.name
 const totFor=mid=>(S.entries[mid]||[]).reduce((s,a)=>s+(Number(a.rate)||0),0);
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
+/* 프로젝트 고유 색상 팔레트 — 전역 (renderPlan, renderMemberEditPanel 공유) */
+const PROJ_COLORS=[
+  "#1D4ED8",/* id1  파랑       */
+  "#B91C1C",/* id2  빨강       */
+  "#15803D",/* id3  초록       */
+  "#EA580C",/* id4  주황       */
+  "#7E22CE",/* id5  보라       */
+  "#0E7490",/* id6  청록       */
+  "#BE185D",/* id7  핫핑크     */
+  "#4D7C0F",/* id8  황록(라임) */
+  "#92400E",/* id9  갈색       */
+  "#0F172A",/* id10 다크네이비  */
+  "#065F46",/* id11 다크틸     */
+  "#1E1B4B",/* id12 다크인디고 */
+];
+function projColor(pid){
+  const idx=S.projects.findIndex(p=>p.id===Number(pid));
+  return PROJ_COLORS[((idx%PROJ_COLORS.length)+PROJ_COLORS.length)%PROJ_COLORS.length];
+}
+
 /* 프로젝트 정렬: 상용-역순 / 비상용-#7고정+역순 */
 const sortedProjects=type=>{
   const l=S.projects.filter(p=>p.type===type);
@@ -1212,25 +1232,6 @@ function renderPlan(){
   /* id:7  내부-DX본부      → 핫핑크    */
   /* id:8  롯데 로리캐슬    → 황록(라임) */
   /* id:9  내부-AI R&D     → 갈색      */
-  const PROJ_COLORS=[
-    "#1D4ED8",/* id1  파랑       */
-    "#B91C1C",/* id2  빨강       */
-    "#15803D",/* id3  초록       */
-    "#EA580C",/* id4  주황       */
-    "#7E22CE",/* id5  보라       */
-    "#0E7490",/* id6  청록       */
-    "#BE185D",/* id7  핫핑크     */
-    "#4D7C0F",/* id8  황록(라임) */
-    "#92400E",/* id9  갈색       */
-    "#0F172A",/* id10 다크네이비  */
-    "#065F46",/* id11 다크틸     */
-    "#1E1B4B",/* id12 다크인디고 */
-  ];
-  function projColor(pid){
-    const idx=S.projects.findIndex(p=>p.id===Number(pid));
-    return PROJ_COLORS[((idx%PROJ_COLORS.length)+PROJ_COLORS.length)%PROJ_COLORS.length];
-  }
-
   /* 항상 전체 멤버 표시 */
   const displayMembers=S.members;
 
@@ -1575,7 +1576,7 @@ function printPlanPDF(){
     getWeeksInMonth(ym).forEach(w=>{cols.push({monthLabel:m+"월",weekLabel:w.label,weekStart:w.start,weekEnd:w.end,colKey:w.start});});
   });
   const planMap=buildPlanMap();
-  const PROJ_COLORS_PDF=["#1D4ED8","#B91C1C","#15803D","#EA580C","#7E22CE","#0E7490","#BE185D","#4D7C0F","#92400E","#0F172A","#065F46","#1E1B4B"];
+  const PROJ_COLORS_PDF=PROJ_COLORS;
   const pc=pid=>{const idx=S.projects.findIndex(p=>p.id===Number(pid));return PROJ_COLORS_PDF[((idx%12)+12)%12];};
 
   /* month colspan */
