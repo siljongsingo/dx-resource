@@ -546,24 +546,31 @@ function renderProjectsTab(){
   const c=[...S.projects.filter(p=>p.type==="상용")].sort((a,b)=>b.id-a.id);
   const ncAll=S.projects.filter(p=>p.type==="비상용");
   const nc=[...ncAll.filter(p=>p.id===7),...ncAll.filter(p=>p.id!==7).sort((a,b)=>b.id-a.id)];
-  const tbl=(lst,bc)=>`
-    <div class="card" style="overflow:hidden">
-      <table class="tbl">
-        <thead><tr><th>ID</th><th>구분</th><th>코드</th><th>프로젝트명</th><th>관리</th></tr></thead>
-        <tbody>
-          ${lst.map(p=>`<tr>
-            <td><span style="font-family:monospace;font-size:11px;color:var(--t4)">${p.id===7&&bc==="bdg-dim"?"📌 ":""}#${p.id}</span></td>
-            <td><span class="badge ${bc}">${p.type}</span></td>
-            <td style="font-family:monospace;font-size:12px">${esc(p.code)}</td>
-            <td style="font-weight:500;color:var(--t1)">${esc(p.name)}</td>
-            <td style="white-space:nowrap">
-              <button class="btn btn-g btn-sm" style="margin-right:6px" onclick="editProject(${p.id})">수정</button>
-              <button class="btn btn-d btn-sm" onclick="delProject(${p.id})">삭제</button>
-            </td>
-          </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`;
+
+  const tbl=(lst,bc)=>{
+    const visible=lst.filter(p=>!p.hidden);
+    const hidden=lst.filter(p=>p.hidden);
+    const rows=(dim,arr)=>arr.map(p=>'<tr style="'+(dim?'opacity:0.45;background:var(--bg-sub2)':'')+'">'+
+      '<td><span style="font-family:monospace;font-size:11px;color:var(--t4)">'+(p.id===7&&bc==="bdg-dim"?"📌 ":"")+'#'+p.id+'</span></td>'+
+      '<td><span class="badge '+bc+'" style="'+(dim?'opacity:0.6':'')+'">'+p.type+'</span></td>'+
+      '<td style="font-family:monospace;font-size:12px">'+esc(p.code)+'</td>'+
+      '<td style="font-weight:500;color:'+(dim?'var(--t3)':'var(--t1)')+'">'+
+        (dim?'<span style="text-decoration:line-through">'+esc(p.name)+'</span>':esc(p.name))+
+      '</td>'+
+      '<td style="white-space:nowrap">'+
+        '<button class="btn btn-g btn-sm" style="margin-right:4px" onclick="editProject('+p.id+')">수정</button>'+
+        '<button class="btn btn-sm" style="margin-right:4px;background:'+(p.hidden?'var(--success-lt)':'var(--warning-lt)')+'
+;color:'+(p.hidden?'var(--success)':'var(--warning)')+'
+;border:1px solid '+(p.hidden?'var(--success-bd)':'var(--warning-bd)')+'" onclick="toggleProjectHidden('+p.id+')">'+(p.hidden?'👁 표시':'🙈 숨기기')+'</button>'+
+        '<button class="btn btn-d btn-sm" onclick="delProject('+p.id+')">삭제</button>'+
+      '</td></tr>').join("");
+    return '<div class="card" style="overflow:hidden"><table class="tbl">'+
+      '<thead><tr><th>ID</th><th>구분</th><th>코드</th><th>프로젝트명</th><th>관리</th></tr></thead>'+
+      '<tbody>'+rows(false,visible)+(hidden.length?rows(true,hidden):'')+'</tbody></table>'+
+      (hidden.length?'<div style="padding:8px 14px;background:var(--bg-sub2);border-top:1px solid var(--bd);font-size:11px;color:var(--t3)">🙈 숨김 '+hidden.length+'건 — 리소스 계획 드롭다운에서 제외됩니다.</div>':'')+
+      '</div>';
+  };
+
   return`
     <div class="card" style="padding:16px;margin-bottom:16px">
       <label class="lbl">${S.pEdit?`✏️ 수정 (ID #${S.pEdit.id})`:"➕ 프로젝트 추가"}</label>
@@ -581,14 +588,20 @@ function renderProjectsTab(){
       </div>
       ${S.pEdit?`<p style="font-size:11px;color:var(--primary);margin-top:8px">💡 수정해도 내부 ID #${S.pEdit.id}로 기존 이력 유지</p>`:""}
     </div>
-    ${[["상용",c,"bdg-p"],["비상용",nc,"bdg-dim"]].map(([lbl,lst,bc])=>`
-      <div style="margin-bottom:16px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    ${[["상용",c,"bdg-p"],["비상용",nc,"bdg-dim"]].map(([lbl,lst,bc])=>{
+      const hiddenCnt=lst.filter(p=>p.hidden).length;
+      return`<div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           <span class="badge ${bc}">${lbl}</span>
           <span style="font-size:11px;color:var(--t4)">${lst.length}건</span>
+          ${hiddenCnt?`<span style="font-size:11px;color:var(--warning);background:var(--warning-lt);border:1px solid var(--warning-bd);border-radius:99px;padding:2px 8px">🙈 숨김 ${hiddenCnt}건</span>`:""}
+          <button class="btn btn-g btn-sm" style="margin-left:auto" onclick="toggleAllHidden('${lbl}')">
+            ${hiddenCnt===lst.length?"👁 전체 표시":"🙈 전체 숨기기"}
+          </button>
         </div>
         ${tbl(lst,bc)}
-      </div>`).join("")}`;
+      </div>`;
+    }).join("")}`;
 }
 
 /* ── Modals ── */
@@ -767,6 +780,20 @@ function saveProject(){
 }
 function editProject(id){const p=S.projects.find(x=>x.id===id);S.pEdit=p;S.pForm={type:p.type,code:p.code,name:p.name};render();}
 function cancelPEdit(){S.pEdit=null;S.pForm={type:"상용",code:"",name:""};render();}
+function toggleProjectHidden(id){
+  S.projects=S.projects.map(p=>p.id===id?{...p,hidden:!p.hidden}:p);
+  LS.set("dx-p",S.projects);
+  gasPost({action:"saveConfig",key:"projects",data:S.projects}).catch(()=>{});
+  render();
+}
+function toggleAllHidden(type){
+  const lst=S.projects.filter(p=>p.type===type);
+  const allHidden=lst.every(p=>p.hidden);
+  S.projects=S.projects.map(p=>p.type===type?{...p,hidden:!allHidden}:p);
+  LS.set("dx-p",S.projects);
+  gasPost({action:"saveConfig",key:"projects",data:S.projects}).catch(()=>{});
+  render();
+}
 function delProject(id){
   if(!confirm("삭제?"))return;
   S.projects=S.projects.filter(x=>x.id!==id);LS.set("dx-p",S.projects);render();
