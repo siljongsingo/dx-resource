@@ -1039,9 +1039,25 @@ function renderPlan(){
     return{bg:"var(--danger-lt)",fg:"var(--danger)",bold:true};
   }
 
-  /* 프로젝트별 색상 팔레트 */
-  const PROJ_COLORS=["#3B82F6","#10B981","#F59E0B","#EF4444","#8B5CF6","#EC4899","#06B6D4","#84CC16","#F97316","#6366F1","#14B8A6","#F43F5E"];
-  function projColor(pid){const idx=S.projects.findIndex(p=>p.id===Number(pid));return PROJ_COLORS[idx%PROJ_COLORS.length]||"#94A3B8";}
+  /* 프로젝트 고유 색상 — 진하고 명확한 팔레트 */
+  const PROJ_COLORS=[
+    "#2563EB",/* 파랑 */
+    "#16A34A",/* 초록 */
+    "#DC2626",/* 빨강 */
+    "#D97706",/* 주황 */
+    "#7C3AED",/* 보라 */
+    "#0891B2",/* 청록 */
+    "#DB2777",/* 핑크 */
+    "#65A30D",/* 연두 */
+    "#EA580C",/* 진주황 */
+    "#4F46E5",/* 인디고 */
+    "#0F766E",/* 틸 */
+    "#BE123C",/* 크림슨 */
+  ];
+  function projColor(pid){
+    const idx=S.projects.findIndex(p=>p.id===Number(pid));
+    return PROJ_COLORS[((idx%PROJ_COLORS.length)+PROJ_COLORS.length)%PROJ_COLORS.length];
+  }
 
   /* 항상 전체 멤버 표시 */
   const displayMembers=S.members;
@@ -1051,8 +1067,7 @@ function renderPlan(){
   const mHeaders=[];let prev="";
   cols.forEach(c=>{if(c.monthLabel!==prev){mHeaders.push({label:c.monthLabel,span:mColSpan[c.monthLabel]});prev=c.monthLabel;}});
 
-  const COL_W=82; /* 주차 셀 고정 너비 px */
-  const FIXED_W=190; /* 이름+등급+팀 고정 영역 합계 */
+  const COL_W=88;
 
   const thMonth=mHeaders.map(h=>`<th colspan="${h.span}" style="text-align:center;background:var(--bg-sub2);border-left:1px solid var(--bd-md);font-size:12px;font-weight:700;color:var(--t1);padding:7px 4px;white-space:nowrap">${h.label}</th>`).join("");
   const thWeek=cols.map(c=>`<th style="text-align:center;width:${COL_W}px;min-width:${COL_W}px;max-width:${COL_W}px;font-size:10px;font-weight:500;color:var(--t3);background:var(--bg-sub2);padding:5px 4px;border-left:1px solid var(--bd);white-space:nowrap">${c.weekLabel}<br/><span style="font-size:9px;color:var(--t4)">${c.weekStart.slice(5).replace("-","/")}~${c.weekEnd.slice(5).replace("-","/")}</span></th>`).join("");
@@ -1065,69 +1080,68 @@ function renderPlan(){
     return`<td style="text-align:center;font-size:10px;font-weight:700;padding:4px 2px;width:${COL_W}px;border-left:1px solid var(--bd);background:${col?col.bg:"transparent"};color:${col?col.fg:"var(--t4)"}">${avg>0?avg+"%":""}</td>`;
   }).join("");
 
-  /* 멤버 행 — 막대 그래프 셀 */
+  /* ── 멤버 행 ── */
   const memberRows=displayMembers.map(m=>{
     const cells=cols.map(c=>{
       const allocs=(planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0);
       const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
       const isActive=S.planEditCell?.memberId===m.id&&S.planEditCell?.weekStart===c.colKey;
-      const inRange=S.planEditCell?.memberId===m.id&&c.colKey>=S.planEditCell.weekStart&&c.colKey<=(S.planEditCell.rangeEnd||S.planEditCell.weekStart);
+      const inRange=S.planEditCell?.memberId===m.id
+        &&c.colKey>=S.planEditCell.weekStart
+        &&c.colKey<=(S.planEditCell.rangeEnd||S.planEditCell.weekStart);
 
-      /* 단일 필터 모드 */
+      const cellBorder=isActive?"outline:2px solid var(--primary);outline-offset:-2px":"";
+      const cellBg=isActive?"var(--primary-lt)":inRange?"rgba(37,99,235,0.05)":"";
+
+      /* ── 필터 모드: 단일 프로젝트 숫자 표시 ── */
       if(S.planProjFilter!=="all"){
         const r=getPlanRate(m.id,c.colKey);
         const col=rateColor(r);
         if(r<=0&&!isActive){
           return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')" class="plan-empty-cell"
-            style="width:${COL_W}px;text-align:center;padding:5px 2px;border-left:1px solid var(--bd);cursor:pointer;background:${inRange?"var(--primary-lt)":"transparent"}"></td>`;
+            style="width:${COL_W}px;border-left:1px solid var(--bd);cursor:pointer;background:${cellBg||"transparent"};${cellBorder}"></td>`;
         }
         return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')"
-          style="width:${COL_W}px;text-align:center;font-size:11px;font-weight:700;padding:5px 2px;border-left:1px solid var(--bd);
-            background:${isActive?"var(--primary-lt)":inRange?"rgba(37,99,235,0.06)":col?col.bg:"transparent"};
-            color:${isActive?"var(--primary)":col?col.fg:"var(--t4)"};
-            outline:${isActive?"2px solid var(--primary)":"none"};cursor:pointer">${r>0?r+"%":""}</td>`;
+          style="width:${COL_W}px;text-align:center;font-size:12px;font-weight:700;padding:4px 2px;border-left:1px solid var(--bd);cursor:pointer;
+            background:${cellBg||col?.bg||"transparent"};color:${isActive?"var(--primary)":col?.fg||"var(--t4)"};${cellBorder}">${r}%</td>`;
       }
 
-      /* 전체 보기 — 막대 그래프 */
+      /* ── 전체 보기: 빈 셀 ── */
       if(allocs.length===0&&!isActive){
         return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')" class="plan-empty-cell"
-          style="width:${COL_W}px;padding:4px 3px;border-left:1px solid var(--bd);cursor:pointer;vertical-align:middle;
-          background:${inRange?"var(--primary-lt)":"transparent"}"></td>`;
+          style="width:${COL_W}px;height:38px;border-left:1px solid var(--bd);cursor:pointer;background:${cellBg||"transparent"};${cellBorder}"></td>`;
       }
 
-      /* 막대 세그먼트 생성 */
-      const cap=Math.max(total,100);
+      /* ── 전체 보기: 막대 그래프 (100% 기준 꽉 채우기) ── */
+      /* total이 100 초과면 각 비율대로, 100 이하면 100 기준으로 표시 */
+      const base=Math.max(total,100);
       const bars=allocs.map(a=>{
-        const pct=Math.round(Number(a.rate)/cap*100);
+        const widthPct=(Number(a.rate)/base*100).toFixed(1);
         const color=projColor(a.projectId);
         const tip=`${gname(a.projectId)}: ${a.rate}%`;
-        return`<div title="${esc(tip)}" style="height:100%;width:${pct}%;background:${color};flex-shrink:0;min-width:2px"></div>`;
+        return`<div title="${esc(tip)}" style="height:100%;width:${widthPct}%;background:${color};min-width:3px;flex-shrink:0"></div>`;
       }).join("");
 
-      const overColor=total>100?"var(--danger)":total===100?"var(--success)":"var(--warning)";
-      const bgColor=isActive?"var(--primary-lt)":inRange?"rgba(37,99,235,0.06)":"transparent";
+      /* 100 미만이면 잔여를 연한 회색으로 채움 */
+      const remaining=total<100?`<div style="height:100%;flex:1;background:var(--bd-md);opacity:0.5"></div>`:"";
+
+      const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
+      const totalBg=total>100?"#FEF2F2":total===100?"#F0FDF4":"#FFFBEB";
 
       return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')"
-        style="width:${COL_W}px;padding:3px 4px;border-left:1px solid var(--bd);cursor:pointer;vertical-align:middle;
-          background:${bgColor};outline:${isActive?"2px solid var(--primary)":"none"}">
-        <div style="display:flex;height:14px;border-radius:2px;overflow:hidden;background:var(--bd);margin-bottom:2px">${bars}</div>
-        <div style="text-align:center;font-size:9px;font-weight:700;color:${overColor};line-height:1">${total}%</div>
+        style="width:${COL_W}px;padding:3px 5px;border-left:1px solid var(--bd);cursor:pointer;vertical-align:middle;background:${cellBg||totalBg};${cellBorder}">
+        <div style="display:flex;height:16px;border-radius:3px;overflow:hidden;border:1px solid rgba(0,0,0,0.08)">${bars}${remaining}</div>
+        <div style="text-align:center;font-size:10px;font-weight:800;color:${totalColor};margin-top:2px;line-height:1.1">${total}%</div>
       </td>`;
     }).join("");
+
     return`<tr>
-      <td style="padding:6px 10px;font-weight:600;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.name)}</td>
-      <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:70px;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.rank)}</td>
+      <td style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.name)}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--t2);white-space:nowrap;position:sticky;left:70px;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.rank)}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:120px;z-index:3;background:var(--bg-card);border-right:2px solid var(--bd-md)">${esc(m.team)}</td>
       ${cells}
     </tr>`;
   }).join("");
-
-  /* 프로젝트 색상 범례 */
-  const legendItems=S.projects.map((p,i)=>`
-    <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);white-space:nowrap">
-      <span style="width:12px;height:12px;border-radius:2px;background:${PROJ_COLORS[i%PROJ_COLORS.length]};flex-shrink:0;display:inline-block"></span>
-      ${esc(p.name)}
-    </span>`).join("");
 
   const emptyMsg="";
   /* ── 편집 패널 ── */
@@ -1270,14 +1284,6 @@ function renderPlan(){
 
   ${editPanel}
   ${projCards?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${projCards}</div>`:""}
-
-  <!-- 프로젝트 색상 범례 -->
-  <div class="card" style="padding:10px 14px;margin-bottom:10px">
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap">프로젝트 범례</span>
-      ${legendItems}
-    </div>
-  </div>
 
   <!-- 그리드 — 가로 스크롤 최적화 -->
   <div class="card" style="padding:0;overflow:hidden">
