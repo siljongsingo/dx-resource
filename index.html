@@ -1109,29 +1109,31 @@ function renderPlan(){
       /* ── 전체 보기: 빈 셀 ── */
       if(allocs.length===0&&!isActive){
         return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')" class="plan-empty-cell"
-          style="width:${COL_W}px;height:38px;border-left:1px solid var(--bd);cursor:pointer;background:${cellBg||"transparent"};${cellBorder}"></td>`;
+          style="width:${COL_W}px;height:42px;border-left:1px solid var(--bd);cursor:pointer;background:${cellBg||"transparent"};${cellBorder}"></td>`;
       }
 
-      /* ── 전체 보기: 막대 그래프 (100% 기준 꽉 채우기) ── */
-      /* total이 100 초과면 각 비율대로, 100 이하면 100 기준으로 표시 */
-      const base=Math.max(total,100);
-      const bars=allocs.map(a=>{
-        const widthPct=(Number(a.rate)/base*100).toFixed(1);
+      /* ── 전체 보기: 프로젝트별 개별 막대 (세로 스택) ── */
+      const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
+      const totalBg=total>100?"#FFF0F0":total===100?"#F0FDF4":"#FFFBEB";
+
+      const barRows=allocs.map(a=>{
+        const r=Number(a.rate);
         const color=projColor(a.projectId);
-        const tip=`${gname(a.projectId)}: ${a.rate}%`;
-        return`<div title="${esc(tip)}" style="height:100%;width:${widthPct}%;background:${color};min-width:3px;flex-shrink:0"></div>`;
+        const pct=Math.min(r,100);
+        const tip=`${gname(a.projectId)}: ${r}%`;
+        return`<div title="${esc(tip)}" style="display:flex;align-items:center;gap:3px;margin-bottom:2px">
+          <div style="flex:1;height:10px;border-radius:2px;overflow:hidden;background:rgba(0,0,0,0.07)">
+            <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;min-width:3px"></div>
+          </div>
+          <span style="font-size:9px;font-weight:700;color:${color};min-width:22px;text-align:right">${r}%</span>
+        </div>`;
       }).join("");
 
-      /* 100 미만이면 잔여를 연한 회색으로 채움 */
-      const remaining=total<100?`<div style="height:100%;flex:1;background:var(--bd-md);opacity:0.5"></div>`:"";
-
-      const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
-      const totalBg=total>100?"#FEF2F2":total===100?"#F0FDF4":"#FFFBEB";
-
       return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')"
-        style="width:${COL_W}px;padding:3px 5px;border-left:1px solid var(--bd);cursor:pointer;vertical-align:middle;background:${cellBg||totalBg};${cellBorder}">
-        <div style="display:flex;height:16px;border-radius:3px;overflow:hidden;border:1px solid rgba(0,0,0,0.08)">${bars}${remaining}</div>
-        <div style="text-align:center;font-size:10px;font-weight:800;color:${totalColor};margin-top:2px;line-height:1.1">${total}%</div>
+        style="width:${COL_W}px;padding:4px 5px;border-left:1px solid var(--bd);cursor:pointer;vertical-align:top;
+          background:${cellBg||totalBg};${cellBorder}">
+        ${barRows}
+        <div style="text-align:right;font-size:9px;font-weight:800;color:${totalColor};border-top:1px solid rgba(0,0,0,0.08);padding-top:1px;margin-top:1px">합계 ${total}%</div>
       </td>`;
     }).join("");
 
@@ -1253,13 +1255,28 @@ function renderPlan(){
     </div>`;
   }).filter(Boolean).join("");
 
+  /* 현재 기간에 실제 투입된 프로젝트만 범례 표시 */
+  const usedProjIds=new Set();
+  S.members.forEach(m=>{cols.forEach(c=>{
+    (planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0).forEach(a=>usedProjIds.add(Number(a.projectId)));
+  });});
+  const legendItems=S.projects.filter(p=>usedProjIds.has(p.id)).map(p=>`
+    <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--t2);white-space:nowrap">
+      <span style="width:13px;height:13px;border-radius:2px;background:${projColor(p.id)};flex-shrink:0;display:inline-block;border:1px solid rgba(0,0,0,0.1)"></span>
+      ${esc(p.name)}
+    </span>`).join("");
+
   return`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div>
       <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em">📅 리소스 투입 계획</h1>
       <p style="font-size:11px;color:var(--t3);margin-top:2px">투입현황(주간보고)과 별개로 운영됩니다. 셀 클릭으로 수시 편집 가능합니다.</p>
     </div>
-    <button class="btn btn-g btn-sm" onclick="exportPlanToExcel()">⬇️ Excel 내보내기</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-g btn-sm" onclick="exportPlanToExcel()">⬇️ Excel</button>
+      <button class="btn btn-g btn-sm" onclick="printPlanPDF()">🖨️ PDF 출력</button>
+      <button class="btn btn-g btn-sm" onclick="togglePlanFullscreen()" id="btn-fullscreen">⛶ 전체화면</button>
+    </div>
   </div>
 
   <div class="card" style="padding:14px 16px;margin-bottom:14px">
@@ -1275,9 +1292,9 @@ function renderPlan(){
       <div><label class="lbl">📁 프로젝트 필터</label>
         <select class="inp" style="min-width:200px" onchange="S.planProjFilter=this.value;render()">${projOpts}</select></div>
       <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
-        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--success-lt);border:1px solid var(--success-bd);display:inline-block"></span>70~100%</span>
-        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--warning-lt);border:1px solid var(--warning-bd);display:inline-block"></span>&lt;70%</span>
-        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--danger-lt);border:1px solid var(--danger-bd);display:inline-block"></span>&gt;100%</span>
+        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#F0FDF4;border:1px solid #16A34A;display:inline-block"></span>100%</span>
+        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#FFFBEB;border:1px solid #D97706;display:inline-block"></span>&lt;100%</span>
+        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#FFF0F0;border:1px solid #DC2626;display:inline-block"></span>&gt;100%</span>
       </div>
     </div>
   </div>
@@ -1285,9 +1302,17 @@ function renderPlan(){
   ${editPanel}
   ${projCards?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${projCards}</div>`:""}
 
-  <!-- 그리드 — 가로 스크롤 최적화 -->
-  <div class="card" style="padding:0;overflow:hidden">
-    <div id="plan-scroll" style="overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity">
+  <!-- 범례: 투입된 프로젝트만 -->
+  ${legendItems?`<div class="card" style="padding:8px 14px;margin-bottom:10px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap">범례</span>
+      ${legendItems}
+    </div>
+  </div>`:""}
+
+  <!-- 그리드 -->
+  <div class="card" style="padding:0;overflow:hidden" id="plan-grid-card">
+    <div id="plan-scroll" style="overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch">
       <table id="plan-tbl" style="border-collapse:collapse;table-layout:fixed;width:max-content">
         <thead style="position:sticky;top:0;z-index:10">
           <tr>
@@ -1306,19 +1331,16 @@ function renderPlan(){
         <tbody>${memberRows}</tbody>
       </table>
     </div>
-    <!-- 스크롤바 힌트 -->
-    <div style="padding:6px 12px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:6px;background:var(--bg-sub2)">
-      <span style="font-size:10px;color:var(--t4)">← 좌우 스크롤로 기간 이동</span>
+    <div style="padding:5px 12px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:6px;background:var(--bg-sub2)">
+      <span style="font-size:10px;color:var(--t4)">← 좌우 스크롤</span>
       <div style="flex:1"></div>
-      <button class="btn btn-g btn-sm" onclick="document.getElementById('plan-scroll').scrollBy({left:-300,behavior:'smooth'})">◀</button>
-      <button class="btn btn-g btn-sm" onclick="document.getElementById('plan-scroll').scrollBy({left:300,behavior:'smooth'})">▶</button>
+      <button class="btn btn-g btn-sm" onclick="document.getElementById('plan-scroll').scrollBy({left:-${COL_W*4},behavior:'smooth'})">◀ 4주</button>
+      <button class="btn btn-g btn-sm" onclick="document.getElementById('plan-scroll').scrollBy({left:${COL_W*4},behavior:'smooth'})">4주 ▶</button>
     </div>
   </div>
 
   <p style="font-size:11px;color:var(--t4);margin-top:8px">
-    💡 <strong style="color:var(--t3)">셀 클릭</strong> → 투입률 입력 &nbsp;·&nbsp;
-    막대 위에 마우스를 올리면 프로젝트별 세부 투입률 표시 &nbsp;·&nbsp;
-    브라우저 로컬 + Google Sheets 동시 저장
+    💡 <strong style="color:var(--t3)">셀 클릭</strong> → 투입률 입력 &nbsp;·&nbsp; 각 막대에 마우스를 올리면 프로젝트명과 투입률 표시
   </p>`;
 }
 
@@ -1360,6 +1382,132 @@ function exportPlanToExcel(){
   document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1000);
 }
+/* ── 전체화면 토글 ── */
+function togglePlanFullscreen(){
+  const el=document.getElementById("plan-grid-card");
+  const btn=document.getElementById("btn-fullscreen");
+  if(!el)return;
+  if(!document.fullscreenElement){
+    el.requestFullscreen().then(()=>{
+      el.style.background="var(--bg)";
+      el.style.padding="16px";
+      el.style.overflowY="auto";
+      const sc=document.getElementById("plan-scroll");
+      if(sc)sc.style.maxHeight="calc(100vh - 80px)";
+      if(btn)btn.textContent="✕ 전체화면 닫기";
+    }).catch(()=>{});
+  } else {
+    document.exitFullscreen();
+    if(btn)btn.textContent="⛶ 전체화면";
+  }
+}
+document.addEventListener("fullscreenchange",()=>{
+  if(!document.fullscreenElement){
+    const btn=document.getElementById("btn-fullscreen");
+    if(btn)btn.textContent="⛶ 전체화면";
+    const el=document.getElementById("plan-grid-card");
+    if(el){el.style.padding="";el.style.overflowY="";}
+    const sc=document.getElementById("plan-scroll");
+    if(sc)sc.style.maxHeight="";
+  }
+});
+
+/* ── PDF 출력 ── */
+function printPlanPDF(){
+  if(!S.planMonthStart||!S.planMonthEnd)return;
+  const months=monthRange(S.planMonthStart,S.planMonthEnd);
+  const cols=[];
+  months.forEach(ym=>{
+    const[,m]=ym.split("-");
+    getWeeksInMonth(ym).forEach(w=>{cols.push({monthLabel:m+"월",weekLabel:w.label,weekStart:w.start,weekEnd:w.end,colKey:w.start});});
+  });
+  const planMap=buildPlanMap();
+  const PROJ_COLORS_PDF=["#2563EB","#16A34A","#DC2626","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#EA580C","#4F46E5","#0F766E","#BE123C"];
+  const pc=pid=>{const idx=S.projects.findIndex(p=>p.id===Number(pid));return PROJ_COLORS_PDF[((idx%12)+12)%12];};
+
+  /* month colspan */
+  const mSpan={};cols.forEach(c=>{mSpan[c.monthLabel]=(mSpan[c.monthLabel]||0)+1;});
+  const mHdrs=[];let pv="";
+  cols.forEach(c=>{if(c.monthLabel!==pv){mHdrs.push({label:c.monthLabel,span:mSpan[c.monthLabel]});pv=c.monthLabel;}});
+
+  const thM=mHdrs.map(h=>`<th colspan="${h.span}" style="text-align:center;background:#1e3a5f;color:#fff;padding:5px 3px;font-size:10px;border:1px solid #ccc">${h.label}</th>`).join("");
+  const thW=cols.map(c=>`<th style="text-align:center;width:80px;background:#2d5a8e;color:#fff;padding:3px 2px;font-size:8px;border:1px solid #ccc">${c.weekLabel}<br/>${c.weekStart.slice(5).replace("-","/")}~${c.weekEnd.slice(5).replace("-","/")}</th>`).join("");
+
+  /* used project legend */
+  const usedIds=new Set();
+  S.members.forEach(m=>{cols.forEach(c=>{(planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0).forEach(a=>usedIds.add(Number(a.projectId)));});});
+  const legendHtml=S.projects.filter(p=>usedIds.has(p.id)).map(p=>`
+    <span style="display:inline-flex;align-items:center;gap:3px;font-size:8px;white-space:nowrap">
+      <span style="width:10px;height:10px;border-radius:2px;background:${pc(p.id)};display:inline-block"></span>${p.name}
+    </span>`).join("");
+
+  const memberRowsHtml=S.members.map(m=>{
+    const cells=cols.map(c=>{
+      const allocs=(planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0);
+      if(!allocs.length)return`<td style="border:1px solid #e5e7eb;width:80px;height:28px"></td>`;
+      const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
+      const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
+      const barsHtml=allocs.map(a=>{
+        const r=Number(a.rate);
+        const color=pc(a.projectId);
+        return`<div style="display:flex;align-items:center;gap:2px;margin-bottom:1px">
+          <div style="flex:1;height:7px;border-radius:1px;background:#eee;overflow:hidden">
+            <div style="height:100%;width:${Math.min(r,100)}%;background:${color}"></div>
+          </div>
+          <span style="font-size:7px;font-weight:700;color:${color};min-width:18px;text-align:right">${r}%</span>
+        </div>`;
+      }).join("");
+      return`<td style="border:1px solid #e5e7eb;padding:2px 3px;vertical-align:top;background:${total===100?"#F0FDF4":total>100?"#FFF0F0":"#FFFBEB"}">
+        ${barsHtml}
+        <div style="text-align:right;font-size:7px;font-weight:800;color:${totalColor};border-top:1px solid #ddd;padding-top:1px">합계 ${total}%</div>
+      </td>`;
+    }).join("");
+    return`<tr>
+      <td style="border:1px solid #e5e7eb;padding:3px 5px;font-weight:700;font-size:9px;white-space:nowrap;background:#f8fafc">${m.name}</td>
+      <td style="border:1px solid #e5e7eb;padding:3px 4px;font-size:8px;color:#6b7280;white-space:nowrap;background:#f8fafc">${m.rank}</td>
+      <td style="border:1px solid #e5e7eb;padding:3px 4px;font-size:8px;color:#6b7280;white-space:nowrap;background:#f8fafc">${m.team}</td>
+      ${cells}
+    </tr>`;
+  }).join("");
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>DX 리소스 투입 계획</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,'Malgun Gothic',Arial,sans-serif;padding:10mm;font-size:9px}
+    h2{font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:2px}
+    .sub{font-size:8px;color:#6b7280;margin-bottom:6px}
+    .legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;padding:4px 6px;background:#f8fafc;border-radius:4px;border:1px solid #e5e7eb}
+    table{width:100%;border-collapse:collapse}
+    @media print{
+      @page{margin:8mm;size:A3 landscape}
+      body{padding:0}
+    }
+  </style>
+  </head><body>
+  <h2>📅 DX Div. 리소스 투입 계획</h2>
+  <div class="sub">기간: ${S.planMonthStart} ~ ${S.planMonthEnd} &nbsp;|&nbsp; 출력일: ${new Date().toLocaleDateString("ko-KR")}</div>
+  <div class="legend">${legendHtml}</div>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="2" style="background:#1e3a5f;color:#fff;padding:5px 6px;border:1px solid #ccc;width:55px;text-align:left">이름</th>
+        <th rowspan="2" style="background:#1e3a5f;color:#fff;padding:5px 4px;border:1px solid #ccc;width:40px;text-align:left">등급</th>
+        <th rowspan="2" style="background:#1e3a5f;color:#fff;padding:5px 4px;border:1px solid #ccc;width:45px;text-align:left">팀</th>
+        ${thM}
+      </tr>
+      <tr>${thW}</tr>
+    </thead>
+    <tbody>${memberRowsHtml}</tbody>
+  </table>
+  <script>window.onload=()=>setTimeout(()=>window.print(),400);<\/script>
+  </body></html>`;
+
+  const w=window.open("","_blank","width=1400,height=900");
+  if(!w)return alert("팝업 차단을 해제해주세요.");
+  w.document.open();w.document.write(html);w.document.close();
+}
+
 /* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
