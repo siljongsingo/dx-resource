@@ -1086,6 +1086,81 @@ function addPlanRow(){addMemberEditRow();}
 function delPlanRow(idx){if(!S.planEditMember)return;const r=S.planEditMember.rows[idx];if(r)delMemberEditRow(r._id);}
 
 
+/* ── 멤버 편집 패널 렌더러 (중첩 backtick 방지용 별도 함수) ── */
+function renderMemberEditPanel(months){
+  const{memberId,rows}=S.planEditMember;
+  const m=S.members.find(x=>x.id===memberId);
+  const allWeeks=[];
+  months.forEach(function(ym){getWeeksInMonth(ym).forEach(function(w){allWeeks.push(w);});});
+
+  function wLabel(w){
+    const mo=allWeeks.filter(function(x){return x.start.slice(0,7)===w.start.slice(0,7);});
+    const wn=mo.findIndex(function(x){return x.start===w.start;})+1;
+    return w.start.slice(2,7).replace("-","/")+"-"+w.end.slice(5).replace("-","/")+" ("+w.start.slice(2,4)+"년 "+Number(w.start.slice(5,7))+"월 "+wn+"주)";
+  }
+
+  function makeStartOpts(selectedStart){
+    return allWeeks.map(function(w){
+      var sel=w.start===selectedStart?" selected":"";
+      return "<option value='"+w.start+"'"+sel+">"+wLabel(w)+"</option>";
+    }).join("");
+  }
+  function makeEndOpts(selectedEnd){
+    return allWeeks.map(function(w){
+      var sel=w.end===selectedEnd?" selected":"";
+      return "<option value='"+w.end+"'"+sel+">"+wLabel(w)+"</option>";
+    }).join("");
+  }
+  function makeProjOpts(selectedId){
+    var sang=sortedProjects("상용").map(function(p){
+      var sel=String(p.id)===String(selectedId)?" selected":"";
+      return "<option value='"+p.id+"'"+sel+">[상용] "+esc(p.name)+"</option>";
+    }).join("");
+    var bi=sortedProjects("비상용").map(function(p){
+      var sel=String(p.id)===String(selectedId)?" selected":"";
+      return "<option value='"+p.id+"'"+sel+">[비상용] "+esc(p.name)+"</option>";
+    }).join("");
+    return "<option value=''>프로젝트 선택</option><optgroup label='── 상용'>"+sang+"</optgroup><optgroup label='── 비상용'>"+bi+"</optgroup>";
+  }
+
+  var rowsHTML=rows.map(function(row){
+    var color=row.projectId?projColor(row.projectId):"var(--t4)";
+    var wkCount=row.wStart&&row.wEnd&&row.wEnd>=row.wStart
+      ?allWeeks.filter(function(w){return w.start>=row.wStart&&w.end<=row.wEnd;}).length:0;
+    var weekBadge=wkCount>0?"<span style='font-size:10px;color:var(--primary);font-weight:700;align-self:flex-end;padding-bottom:6px;white-space:nowrap;margin-left:6px'>▶ "+wkCount+"주</span>":"";
+    return "<div style='background:var(--bg-sub2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid "+color+"'>"
+      +"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px'>"
+      +"<div style='flex:2;min-width:180px'><div style='font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px'>프로젝트</div>"
+      +"<select class='inp' style='font-size:12px' onchange=\"updMemberEditRow('"+row._id+"','projectId',this.value);render()\">"+makeProjOpts(row.projectId)+"</select></div>"
+      +"<div style='width:90px'><div style='font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px'>투입률</div>"
+      +"<div style='display:flex;align-items:center;gap:4px'>"
+      +"<input type='number' class='inp' style='text-align:center;font-size:14px;font-weight:700' min='0' max='200' value='"+row.rate+"' placeholder='0' oninput=\"updMemberEditRow('"+row._id+"','rate',this.value)\"/>"
+      +"<span style='font-size:12px;color:var(--t3);font-weight:600'>%</span></div></div>"
+      +"<button class='btn btn-d btn-sm' style='align-self:flex-end;margin-bottom:2px' onclick=\"delMemberEditRow('"+row._id+"');render()\">×</button>"
+      +"</div>"
+      +"<div style='display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end'>"
+      +"<div style='flex:1;min-width:155px'><div style='font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px'>📅 시작 주차</div>"
+      +"<select class='inp' style='font-size:11px' onchange=\"updMemberEditRow('"+row._id+"','wStart',this.value);render()\">"+makeStartOpts(row.wStart)+"</select></div>"
+      +"<div style='font-size:14px;color:var(--t4);align-self:flex-end;padding-bottom:6px'>~</div>"
+      +"<div style='flex:1;min-width:155px'><div style='font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px'>📅 종료 주차</div>"
+      +"<select class='inp' style='font-size:11px' onchange=\"updMemberEditRow('"+row._id+"','wEnd',this.value);render()\">"+makeEndOpts(row.wEnd)+"</select></div>"
+      +weekBadge
+      +"</div></div>";
+  }).join("");
+
+  return "<div id='plan-member-edit' class='card' style='padding:16px;margin-bottom:14px;border:2px solid var(--primary-bd)'>"
+    +"<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px'>"
+    +"<span style='font-weight:700;font-size:15px;color:var(--primary)'>✎ "+esc(m?.name||"")+" · "+esc(m?.team||"")+" · "+esc(m?.rank||"")+"</span>"
+    +"<div style='display:flex;gap:8px;align-items:center'>"
+    +"<span id='member-edit-note' style='font-size:12px;font-weight:600;color:var(--t3)'></span>"
+    +"<button class='btn btn-g btn-sm' onclick='closeMemberEdit()'>취소</button>"
+    +"<button class='btn btn-p' onclick='commitMemberEdit()'>💾 저장</button>"
+    +"</div></div>"
+    +rowsHTML
+    +"<button style='background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;font-weight:600;padding:4px 0' onclick='addMemberEditRow();render()'>+ 프로젝트 추가</button>"
+    +"</div>";
+}
+
 /* ── 렌더 ── */
 function renderPlan(){
   if(!S.planMonthStart||!S.planMonthEnd){
@@ -1237,8 +1312,11 @@ function renderPlan(){
       </td>`;
     }).join("");
 
+    const isEditing=S.planEditMember?.memberId===m.id;
+    const nameCellColor=isEditing?"var(--primary)":"var(--t1)";
+    const editIcon=isEditing?' <span style="font-size:10px">✎</span>':"";
     return`<tr>
-      <td onclick="openMemberEdit(${m.id})" style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd);cursor:pointer;color:${S.planEditMember?.memberId===m.id?"var(--primary)":"var(--t1)"}">${esc(m.name)}${S.planEditMember?.memberId===m.id?` <span style="font-size:10px">✎</span>`:""}</td>
+      <td onclick="openMemberEdit(${m.id})" style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd);cursor:pointer;color:${nameCellColor}">${esc(m.name)}${editIcon}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--t2);white-space:nowrap;position:sticky;left:70px;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.rank)}</td>
       <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:120px;z-index:3;background:var(--bg-card);border-right:2px solid var(--bd-md)">${esc(m.team)}</td>
       ${cells}
@@ -1250,70 +1328,7 @@ function renderPlan(){
   /* ── 멤버 편집 패널 ── */
   let editPanel="";
   if(S.planEditMember){
-    const{memberId,rows}=S.planEditMember;
-    const m=S.members.find(x=>x.id===memberId);
-    const allWeeks=[];
-    months.forEach(ym=>{getWeeksInMonth(ym).forEach(w=>{allWeeks.push(w);});});
-    const weekOpts=allWeeks.map(w=>`<option value="${w.start}">${w.start.slice(2,7).replace("-","/")} ~ ${w.end.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
-
-    const rowsHTML=rows.map((row,ri)=>{
-      const color=row.projectId?projColor(row.projectId):"var(--t4)";
-      const startOpts=allWeeks.map(w=>`<option value="${w.start}"${w.start===row.wStart?" selected":""}>${w.start.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
-      const endOpts=allWeeks.map(w=>`<option value="${w.start}"${w.start===row.wEnd||(w.end===row.wEnd&&!row.wEnd_isStart)?" selected":""}>${w.end.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
-      /* 종료주 opt: wEnd가 w.end인 경우 선택 */
-      const endOpts2=allWeeks.map(w=>`<option value="${w.end}"${w.end===row.wEnd?" selected":""}>${w.end.slice(2,7).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("");
-      return`<div style="background:var(--bg-sub2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid ${color}">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">
-          <div style="flex:2;min-width:200px">
-            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">프로젝트</div>
-            <select class="inp" style="font-size:12px" onchange="updMemberEditRow('${row._id}','projectId',this.value);render()">
-              <option value="">프로젝트 선택</option>
-              <optgroup label="── 상용">${sortedProjects("상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[상용] ${esc(p.name)}</option>`).join("")}</optgroup>
-              <optgroup label="── 비상용">${sortedProjects("비상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[비상용] ${esc(p.name)}</option>`).join("")}</optgroup>
-            </select>
-          </div>
-          <div style="width:90px">
-            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">투입률</div>
-            <div style="display:flex;align-items:center;gap:4px">
-              <input type="number" class="inp" style="text-align:center;font-size:14px;font-weight:700" min="0" max="200"
-                value="${row.rate}" placeholder="0" oninput="updMemberEditRow('${row._id}','rate',this.value)"/>
-              <span style="font-size:12px;color:var(--t3);font-weight:600">%</span>
-            </div>
-          </div>
-          <button class="btn btn-d btn-sm" style="align-self:flex-end;margin-bottom:2px" onclick="delMemberEditRow('${row._id}');render()">×</button>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:1;min-width:160px">
-            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">📅 시작 주차</div>
-            <select class="inp" style="font-size:11px" onchange="updMemberEditRow('${row._id}','wStart',this.value);render()">
-              ${allWeeks.map(w=>`<option value="${w.start}"${w.start===row.wStart?" selected":""}>${w.start.slice(2,7).replace("-","/")}~${w.end.slice(5).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("")}
-            </select>
-          </div>
-          <div style="font-size:14px;color:var(--t4);align-self:flex-end;padding-bottom:6px">~</div>
-          <div style="flex:1;min-width:160px">
-            <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">📅 종료 주차</div>
-            <select class="inp" style="font-size:11px" onchange="updMemberEditRow('${row._id}','wEnd',this.value);render()">
-              ${allWeeks.map(w=>`<option value="${w.end}"${w.end===row.wEnd?" selected":""}>${w.start.slice(2,7).replace("-","/")}~${w.end.slice(5).replace("-","/")} (${w.start.slice(0,7).replace("-","년 ")}월 ${allWeeks.filter(x=>x.start.slice(0,7)===w.start.slice(0,7)).findIndex(x=>x.start===w.start)+1}주)</option>`).join("")}
-            </select>
-          </div>
-          ${row.wStart&&row.wEnd&&row.wEnd>=row.wStart?`<div style="font-size:10px;color:var(--primary);font-weight:700;align-self:flex-end;padding-bottom:6px;white-space:nowrap">▶ ${allWeeks.filter(w=>w.start>=row.wStart&&w.end<=row.wEnd).length}주</div>`:""}
-        </div>
-      </div>`;
-    }).join("");
-
-    editPanel=`
-    <div id="plan-member-edit" class="card" style="padding:16px;margin-bottom:14px;border:2px solid var(--primary-bd)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <span style="font-weight:700;font-size:15px;color:var(--primary)">✎ ${esc(m?.name||"")} · ${esc(m?.team||"")} · ${esc(m?.rank||"")}</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span id="member-edit-note" style="font-size:12px;font-weight:600;color:var(--t3)"></span>
-          <button class="btn btn-g btn-sm" onclick="closeMemberEdit()">취소</button>
-          <button class="btn btn-p" onclick="commitMemberEdit()">💾 저장</button>
-        </div>
-      </div>
-      ${rowsHTML}
-      <button style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;font-weight:600;padding:4px 0" onclick="addMemberEditRow();render()">+ 프로젝트 추가</button>
-    </div>`;
+    editPanel=renderMemberEditPanel(months);
   }
 
 
