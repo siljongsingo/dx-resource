@@ -1346,7 +1346,7 @@ function renderPlan(){
      각 주차 1명 100% = 1주 = 1/4.33 MM (월평균 4.33주)
      단, 100% 초과도 1MM로 cap → min(rate,100)/100 / 4.33
      합계: 해당 프로젝트에 투입된 모든 (멤버×주차)의 MM 합산 */
-  const WEEKS_PER_MONTH=4.33;
+  var WEEKS_PER_MONTH=4.33;
   function toMM(rate){
     /* rate: %, 1주 기준. 100% 초과는 100%로 cap */
     return Math.min(Number(rate),100)/100/WEEKS_PER_MONTH;
