@@ -77,6 +77,10 @@ nav{background:var(--bg-sub);border-bottom:1px solid var(--bd);position:sticky;t
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-thumb{background:var(--bd-md);border-radius:99px;}
 .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;}
+/* plan grid */
+#plan-tbl td,#plan-tbl th{vertical-align:middle;}
+#plan-tbl tbody tr:hover td{background:var(--primary-lt)!important;}
+#plan-tbl tbody tr:hover td[style*="sticky"]{background:var(--primary-lt)!important;}
 </style>
 </head>
 <body>
@@ -128,6 +132,13 @@ const S={
   pForm:{type:"상용",code:"",name:""}, pEdit:null,
   analysis:"", analyzing:false,
   toast:false, warnList:null,
+  /* ── Planning tab ── */
+  planTab:"plan",
+  planProjFilter:"all",
+  planMonthStart:"", planMonthEnd:"",
+  planEditCell:null,     /* {memberId, weekStart, weekEnd} */
+  planEditData:{},       /* temp: memberId_weekStart → [{projectId,rate}] */
+  planData:[],           /* 독립 계획 데이터: [{weekStart,weekEnd,entries:[{memberId,allocations:[{projectId,rate}]}]}] */
 };
 
 /* ═══════════════════════════════════════
@@ -171,6 +182,7 @@ const gasPost=payload=>{
   const {action,...rest}=payload;
   if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
   if(action==="saveResource") return gasCall({action,resource:rest.data});
+  if(action==="savePlan") return gasCall({action,data:JSON.stringify(rest.data)});
   return Promise.resolve({ok:false});
 };
 
@@ -178,9 +190,10 @@ async function loadData(){
   const lsM=LS.get("dx-m");if(lsM){S.members=lsM;}
   const lsP=LS.get("dx-p");if(lsP){S.projects=lsP;}
   const lsR=LS.get("dx-r");if(lsR){S.resources=lsR;}
+  const lsPlan=LS.get("dx-plan");if(lsPlan){S.planData=lsPlan;}
   render();
   try{
-    const [cfg,res]=await Promise.all([gasGet("getConfig"),gasGet("getResources")]);
+    const [cfg,res,plan]=await Promise.all([gasGet("getConfig"),gasGet("getResources"),gasGet("getPlan")]);
     if(cfg.ok&&cfg.data){
       if(cfg.data.members){S.members=cfg.data.members;LS.set("dx-m",cfg.data.members);}
       if(cfg.data.projects){S.projects=cfg.data.projects;LS.set("dx-p",cfg.data.projects);}
@@ -189,6 +202,10 @@ async function loadData(){
     if(res.ok&&res.data&&res.data.length){
       S.resources=res.data;
       LS.set("dx-r",res.data);
+    }
+    if(plan.ok&&plan.data){
+      S.planData=plan.data;
+      LS.set("dx-plan",plan.data);
     }
   }catch(e){console.warn("GAS:",e);}
   render();
@@ -199,8 +216,8 @@ async function loadData(){
 ═══════════════════════════════════════ */
 function render(){
   document.documentElement.setAttribute("data-theme",S.dark?"dark":"");
-  const body=S.page==="main"?renderMain():renderInput();
-  document.getElementById("app").innerHTML=renderNav()+`<div style="max-width:1080px;margin:0 auto;padding:20px">${body}</div>`+renderToast()+renderWarnModal();
+  const body=S.page==="main"?renderMain():S.page==="plan"?renderPlan():renderInput();
+  document.getElementById("app").innerHTML=renderNav()+`<div style="max-width:1200px;margin:0 auto;padding:20px">${body}</div>`+renderToast()+renderWarnModal();
   bindEvents();
 }
 
@@ -224,6 +241,7 @@ function renderNav(){
           </button>
           <div style="display:flex;gap:2px">
             <button class="btn" style="padding:6px 14px;font-size:13px;font-weight:500;background:${S.page==="main"?"var(--primary)":"transparent"};color:${S.page==="main"?"#fff":"var(--t3)"}" onclick="setPage('main')">📊 투입현황</button>
+            <button class="btn" style="padding:6px 14px;font-size:13px;font-weight:500;background:${S.page==="plan"?"var(--primary)":"transparent"};color:${S.page==="plan"?"#fff":"var(--t3)"}" onclick="setPage('plan')">📅 리소스 계획</button>
             <button class="btn" style="padding:6px 14px;font-size:13px;font-weight:500;background:${S.page==="input"?"var(--primary)":"transparent"};color:${S.page==="input"?"#fff":"var(--t3)"}" onclick="setPage('input')">🛠️ 리소스 및 정보 입력</button>
           </div>
         </div>
@@ -233,6 +251,7 @@ function renderNav(){
     </div>
     ${S.menuOpen?`<div style="border-top:1px solid var(--bd);background:var(--bg-sub)">
       <button class="tab ${S.page==="main"?"on":""}" onclick="setPage('main');toggleMenu()">📊 투입현황</button>
+      <button class="tab ${S.page==="plan"?"on":""}" onclick="setPage('plan');toggleMenu()">📅 리소스 계획</button>
       <button class="tab ${S.page==="input"?"on":""}" onclick="setPage('input');toggleMenu()">🛠️ 리소스 및 정보 입력</button>
       <button class="tab" onclick="doSync();toggleMenu()">🔄 데이터 동기화</button>
       <button class="tab" onclick="toggleTheme();toggleMenu()">${S.dark?"☀️ 라이트 모드":"🌙 다크 모드"}</button>
@@ -824,6 +843,391 @@ function printReport(){
   w.document.open();w.document.write(html);w.document.close();
 }
 
+
+/* ═══════════════════════════════════════
+   PLANNING PAGE  (투입현황과 완전 독립)
+═══════════════════════════════════════ */
+
+/* ── 날짜 유틸 ── */
+function addMonths(ym,n){
+  let[y,m]=ym.split("-").map(Number);
+  m+=n;while(m>12){m-=12;y++;}while(m<1){m+=12;y--;}
+  return y+"-"+String(m).padStart(2,"0");
+}
+function monthRange(s,e){
+  const r=[];let c=s;
+  while(c<=e){r.push(c);c=addMonths(c,1);}
+  return r;
+}
+function getWeeksInMonth(ym){
+  const[y,m]=ym.split("-").map(Number);
+  const weeks=[];
+  const lastDay=new Date(y,m,0);
+  let cur=new Date(y,m-1,1);
+  let wIdx=1;
+  while(cur<=lastDay){
+    const wStart=new Date(cur);
+    const dow=cur.getDay();
+    const daysToSun=dow===0?0:7-dow;
+    let wEnd=new Date(cur);
+    wEnd.setDate(wEnd.getDate()+daysToSun);
+    if(wEnd>lastDay)wEnd=new Date(lastDay);
+    weeks.push({label:wIdx+"주",start:wStart.toISOString().split("T")[0],end:wEnd.toISOString().split("T")[0]});
+    wIdx++;
+    cur=new Date(wEnd);cur.setDate(cur.getDate()+1);
+  }
+  return weeks;
+}
+
+/* ── planData CRUD (독립 저장소 dx-plan) ── */
+function buildPlanMap(){
+  const map={};
+  S.planData.forEach(r=>{
+    (r.entries||[]).forEach(e=>{
+      const key=e.memberId+"_"+r.weekStart;
+      map[key]=(e.allocations||[]).filter(a=>a.projectId&&Number(a.rate)>0);
+    });
+  });
+  return map;
+}
+
+function savePlanCell(memberId,weekStart,weekEnd,allocations){
+  const rows=allocations
+    .filter(a=>a.projectId!==""&&Number(a.rate)>0)
+    .map(a=>({projectId:Number(a.projectId),rate:Number(a.rate)}));
+  const ex=S.planData.find(r=>r.weekStart===weekStart);
+  let newEntries;
+  if(ex){
+    newEntries=(ex.entries||[]).filter(e=>e.memberId!==memberId);
+    if(rows.length) newEntries.push({memberId,allocations:rows});
+  } else {
+    newEntries=rows.length?[{memberId,allocations:rows}]:[];
+  }
+  if(!newEntries.length){
+    S.planData=S.planData.filter(r=>r.weekStart!==weekStart);
+  } else {
+    const rec={weekStart,weekEnd:weekEnd||getFriday(weekStart),entries:newEntries};
+    S.planData=ex?S.planData.map(r=>r.weekStart===weekStart?rec:r):[...S.planData,rec];
+  }
+  LS.set("dx-plan",S.planData);
+  /* GAS 동기화 (비동기, 실패해도 로컬은 유지) */
+  gasPost({action:"savePlan",data:S.planData}).catch(()=>{});
+}
+
+/* ── 기간 프리셋 ── */
+function setPlanPreset(p){
+  const now=new Date();
+  const y=now.getFullYear();
+  const m=String(now.getMonth()+1).padStart(2,"0");
+  const ym=y+"-"+m;
+  if(p==="this"){S.planMonthStart=ym;S.planMonthEnd=ym;}
+  else if(p==="3m"){S.planMonthStart=ym;S.planMonthEnd=addMonths(ym,2);}
+  else if(p==="6m"){S.planMonthStart=ym;S.planMonthEnd=addMonths(ym,5);}
+  else if(p==="year"){S.planMonthStart=y+"-01";S.planMonthEnd=y+"-12";}
+  else if(p==="h2"){S.planMonthStart=y+"-07";S.planMonthEnd=y+"-12";}
+  else if(p==="next"){S.planMonthStart=(y+1)+"-01";S.planMonthEnd=(y+1)+"-12";}
+  S.planEditCell=null;render();
+}
+
+/* ── 셀 편집 ── */
+function openPlanCell(memberId,weekStart,weekEnd){
+  if(S.planEditCell){
+    const prev=S.planEditCell;
+    savePlanCell(prev.memberId,prev.weekStart,prev.weekEnd,S.planEditData[prev.memberId+"_"+prev.weekStart]||[]);
+  }
+  S.planEditCell={memberId,weekStart,weekEnd};
+  const ex=S.planData.find(r=>r.weekStart===weekStart);
+  const entry=ex?.entries?.find(e=>e.memberId===memberId);
+  const existing=(entry?.allocations||[]).filter(a=>a.projectId&&Number(a.rate)>0);
+  S.planEditData[memberId+"_"+weekStart]=existing.length?existing.map(a=>({...a})):[{projectId:"",rate:""}];
+  render();
+  setTimeout(()=>{const el=document.getElementById("plan-edit-panel");if(el)el.scrollIntoView({behavior:"smooth",block:"nearest"});},60);
+}
+function closePlanCell(){S.planEditCell=null;render();}
+function addPlanRow(){
+  if(!S.planEditCell)return;
+  const key=S.planEditCell.memberId+"_"+S.planEditCell.weekStart;
+  if(!S.planEditData[key])S.planEditData[key]=[];
+  S.planEditData[key].push({projectId:"",rate:""});render();
+}
+function delPlanRow(idx){
+  if(!S.planEditCell)return;
+  const key=S.planEditCell.memberId+"_"+S.planEditCell.weekStart;
+  S.planEditData[key]=S.planEditData[key].filter((_,i)=>i!==idx);render();
+}
+function updPlanRow(idx,field,val){
+  if(!S.planEditCell)return;
+  const key=S.planEditCell.memberId+"_"+S.planEditCell.weekStart;
+  if(!S.planEditData[key])return;
+  S.planEditData[key][idx][field]=val;
+  const sumEl=document.getElementById("plan-edit-sum");
+  if(sumEl){
+    const t=(S.planEditData[key]||[]).reduce((s,a)=>s+Number(a.rate||0),0);
+    sumEl.textContent="합계 "+t+"%";
+    sumEl.style.color=t===100?"var(--success)":t>100?"var(--danger)":"var(--warning)";
+  }
+}
+function commitPlanCell(){
+  if(!S.planEditCell)return;
+  const{memberId,weekStart,weekEnd}=S.planEditCell;
+  savePlanCell(memberId,weekStart,weekEnd,S.planEditData[memberId+"_"+weekStart]||[]);
+  S.planEditCell=null;render();
+}
+
+/* ── 렌더 ── */
+function renderPlan(){
+  if(!S.planMonthStart||!S.planMonthEnd){
+    const now=new Date();const y=now.getFullYear();const m=String(now.getMonth()+1).padStart(2,"0");
+    S.planMonthStart=y+"-"+m;S.planMonthEnd=addMonths(y+"-"+m,5);
+  }
+  const months=monthRange(S.planMonthStart,S.planMonthEnd);
+  if(!months.length)return`<p style="color:var(--t3);text-align:center;padding:60px">기간을 올바르게 설정해주세요.</p>`;
+
+  const cols=[];
+  months.forEach(ym=>{
+    const[,m]=ym.split("-");
+    getWeeksInMonth(ym).forEach(w=>{cols.push({monthLabel:m+"월",weekLabel:w.label,weekStart:w.start,weekEnd:w.end,colKey:w.start});});
+  });
+
+  const planMap=buildPlanMap();
+  if(S.planEditCell){
+    const{memberId,weekStart}=S.planEditCell;
+    const key=memberId+"_"+weekStart;
+    planMap[memberId+"_"+weekStart]=(S.planEditData[key]||[]).filter(a=>a.projectId!==""&&Number(a.rate)>0).map(a=>({projectId:Number(a.projectId),rate:Number(a.rate)}));
+  }
+
+  function getPlanRate(memberId,weekStart){
+    const al=planMap[memberId+"_"+weekStart]||[];
+    if(S.planProjFilter==="all")return al.reduce((s,a)=>s+Number(a.rate||0),0);
+    const a=al.find(x=>String(x.projectId)===String(S.planProjFilter));
+    return a?Number(a.rate||0):0;
+  }
+  function rateColor(r){
+    if(r<=0)return null;
+    if(r<70)return{bg:"var(--warning-lt)",fg:"var(--warning)",bold:false};
+    if(r<=100)return{bg:"var(--success-lt)",fg:"var(--success)",bold:true};
+    return{bg:"var(--danger-lt)",fg:"var(--danger)",bold:true};
+  }
+
+  /* 투입 있는 멤버만 (편집 중인 멤버 포함) */
+  const editMid=S.planEditCell?.memberId;
+  const displayMembers=S.members.filter(m=>
+    m.id===editMid||cols.some(c=>getPlanRate(m.id,c.colKey)>0)
+  );
+
+  /* 헤더 */
+  const mColSpan={};cols.forEach(c=>{mColSpan[c.monthLabel]=(mColSpan[c.monthLabel]||0)+1;});
+  const mHeaders=[];let prev="";
+  cols.forEach(c=>{if(c.monthLabel!==prev){mHeaders.push({label:c.monthLabel,span:mColSpan[c.monthLabel]});prev=c.monthLabel;}});
+  const thMonth=mHeaders.map(h=>`<th colspan="${h.span}" style="text-align:center;background:var(--bg-sub2);border-left:1px solid var(--bd-md);font-size:12px;font-weight:700;color:var(--t1);padding:7px 4px;white-space:nowrap">${h.label}</th>`).join("");
+  const thWeek=cols.map(c=>`<th style="text-align:center;min-width:58px;font-size:10px;font-weight:500;color:var(--t3);background:var(--bg-sub2);padding:5px 4px;border-left:1px solid var(--bd);white-space:nowrap">${c.weekLabel}<br/><span style="font-size:9px;color:var(--t4)">${c.weekStart.slice(5).replace("-","/")}~${c.weekEnd.slice(5).replace("-","/")}</span></th>`).join("");
+
+  /* 평균 가용율 행 */
+  const summaryRow=cols.map(c=>{
+    const rates=S.members.map(m=>getPlanRate(m.id,c.colKey)).filter(r=>r>0);
+    const avg=rates.length?Math.round(rates.reduce((s,r)=>s+r,0)/rates.length):0;
+    const col=avg>0?rateColor(avg):null;
+    return`<td style="text-align:center;font-size:10px;font-weight:700;padding:4px 2px;border-left:1px solid var(--bd);background:${col?col.bg:"transparent"};color:${col?col.fg:"var(--t4)"}">${avg>0?avg+"%":""}</td>`;
+  }).join("");
+
+  /* 멤버 행 */
+  const memberRows=displayMembers.map(m=>{
+    const cells=cols.map(c=>{
+      const r=getPlanRate(m.id,c.colKey);
+      const col=rateColor(r);
+      const isActive=S.planEditCell?.memberId===m.id&&S.planEditCell?.weekStart===c.colKey;
+      const allocs=planMap[m.id+"_"+c.colKey]||[];
+      const tip=S.planProjFilter==="all"&&allocs.length?allocs.map(a=>`${gname(a.projectId)}: ${a.rate}%`).join(" / "):"";
+      if(r<=0&&!isActive){
+        return`<td onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')" class="plan-empty-cell"
+          style="text-align:center;padding:5px 2px;border-left:1px solid var(--bd);cursor:pointer;color:var(--t4)"></td>`;
+      }
+      return`<td title="${esc(tip)}" onclick="openPlanCell(${m.id},'${c.colKey}','${c.weekEnd}')"
+        style="text-align:center;font-size:11px;font-weight:${col?.bold?"700":"400"};padding:5px 2px;
+          border-left:1px solid var(--bd);background:${isActive?"var(--primary-lt)":col?col.bg:"transparent"};
+          color:${isActive?"var(--primary)":col?col.fg:"var(--t4)"};
+          outline:${isActive?"2px solid var(--primary)":"none"};white-space:nowrap;cursor:pointer">${r>0?r+"%":""}</td>`;
+    }).join("");
+    return`<tr>
+      <td style="padding:6px 10px;font-weight:600;font-size:12px;white-space:nowrap;position:sticky;left:0;background:var(--bg-card);z-index:2;border-right:2px solid var(--bd-md)">${esc(m.name)}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:68px;background:var(--bg-card);z-index:2;border-right:1px solid var(--bd)">${esc(m.rank)}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:120px;background:var(--bg-card);z-index:2;border-right:2px solid var(--bd-md)">${esc(m.team)}</td>
+      ${cells}
+    </tr>`;
+  }).join("");
+
+  const emptyMsg=displayMembers.length===0?`<tr><td colspan="${3+cols.length}" style="text-align:center;padding:40px;color:var(--t3);font-size:13px">아직 투입 계획이 없습니다. 아래 그리드의 셀을 클릭해 투입률을 입력하세요.</td></tr>`:"";
+
+  /* 편집 패널 */
+  let editPanel="";
+  if(S.planEditCell){
+    const{memberId,weekStart,weekEnd}=S.planEditCell;
+    const m=S.members.find(x=>x.id===memberId);
+    const key=memberId+"_"+weekStart;
+    const rows=S.planEditData[key]||[{projectId:"",rate:""}];
+    const total=rows.reduce((s,a)=>s+Number(a.rate||0),0);
+    const sumColor=total===100?"var(--success)":total>100?"var(--danger)":"var(--warning)";
+    const pOptsSang=sortedProjects("상용").map(p=>`<option value="${p.id}"${row=>""}>【상용】${esc(p.name)}</option>`).join("");
+    const pOptsBi=sortedProjects("비상용").map(p=>`<option value="${p.id}">【비상용】${esc(p.name)}</option>`).join("");
+    const rowsHTML=rows.map((row,i)=>`
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+        <select class="inp" style="flex:1;min-width:180px;font-size:12px" onchange="updPlanRow(${i},'projectId',this.value)">
+          <option value="">프로젝트 선택</option>
+          <optgroup label="── 상용">${sortedProjects("상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[상용] ${esc(p.name)}</option>`).join("")}</optgroup>
+          <optgroup label="── 비상용">${sortedProjects("비상용").map(p=>`<option value="${p.id}"${String(p.id)===String(row.projectId)?" selected":""}>[비상용] ${esc(p.name)}</option>`).join("")}</optgroup>
+        </select>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" class="inp" style="width:72px;text-align:center;font-size:14px;font-weight:700" min="0" max="200"
+            value="${row.rate}" placeholder="0" oninput="updPlanRow(${i},'rate',this.value)"/>
+          <span style="font-size:13px;color:var(--t3);font-weight:600">%</span>
+          <button class="btn btn-d btn-sm" onclick="delPlanRow(${i})">×</button>
+        </div>
+      </div>`).join("");
+    editPanel=`
+    <div id="plan-edit-panel" class="card" style="padding:16px;margin-bottom:14px;border:2px solid var(--primary-bd)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-weight:700;font-size:14px;color:var(--primary)">✎ ${esc(m?.name||"")} · ${esc(m?.team||"")}</span>
+          <span style="font-size:12px;color:var(--t3);margin-left:10px">${weekStart} ~ ${weekEnd}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="plan-edit-sum" style="font-weight:700;font-size:13px;color:${sumColor}">합계 ${total}%</span>
+          <button class="btn btn-g btn-sm" onclick="closePlanCell()">취소</button>
+          <button class="btn btn-p btn-sm" onclick="commitPlanCell()">💾 저장</button>
+        </div>
+      </div>
+      ${rowsHTML}
+      <button style="background:none;border:none;cursor:pointer;color:var(--primary);font-size:12px;font-weight:600;padding:2px 0" onclick="addPlanRow()">+ 항목 추가</button>
+      ${total>0&&total!==100?`<div class="alert alert-w" style="margin-top:10px"><span>⚠️</span><span>투입율 합계가 ${total}%입니다.</span></div>`:""}
+      ${total===100?`<div class="alert alert-s" style="margin-top:10px"><span>✅</span><span>투입율 합계 100%</span></div>`:""}
+    </div>`;
+  }
+
+  /* 프리셋 버튼 */
+  const now2=new Date();const ty=now2.getFullYear();
+  const presets=[{k:"this",l:"이번 달"},{k:"3m",l:"3개월"},{k:"6m",l:"6개월"},{k:"year",l:ty+"년"},{k:"h2",l:"하반기"},{k:"next",l:(ty+1)+"년"}];
+  const presetBtns=presets.map(p=>`<button class="btn btn-g btn-sm" onclick="setPlanPreset('${p.k}')">${p.l}</button>`).join("");
+
+  /* 프로젝트 필터 */
+  const projOpts=`<option value="all">전체 프로젝트</option>`
+    +S.projects.map(p=>`<option value="${p.id}"${S.planProjFilter==p.id?" selected":""}>${esc(p.name)}</option>`).join("");
+
+  /* 프로젝트 요약 카드 (투입 있는 것만) */
+  const projCards=S.projects.map(p=>{
+    let tot=0,cnt=0;const inv=new Set();
+    S.members.forEach(m=>{cols.forEach(c=>{
+      const al=planMap[m.id+"_"+c.colKey]||[];
+      const a=al.find(x=>String(x.projectId)===String(p.id));
+      if(a&&Number(a.rate)>0){tot+=Number(a.rate);cnt++;inv.add(m.id);}
+    });});
+    if(!inv.size)return"";
+    const avg=Math.round(tot/cnt);
+    const bc=p.type==="상용"?"bdg-p":"bdg-dim";
+    return`<div class="card" style="padding:12px 14px;min-width:175px;flex:1 1 175px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span class="badge ${bc}" style="font-size:10px">${p.type}</span>
+        <span style="font-size:11px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="${esc(p.name)}">${esc(p.name)}</span>
+      </div>
+      <div style="display:flex;gap:16px">
+        <div><div style="font-size:10px;color:var(--t3);margin-bottom:2px">평균 투입률</div><div style="font-size:18px;font-weight:700;color:var(--primary)">${avg}%</div></div>
+        <div><div style="font-size:10px;color:var(--t3);margin-bottom:2px">투입 인원</div><div style="font-size:18px;font-weight:700;color:var(--t1)">${inv.size}명</div></div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join("");
+
+  return`
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em">📅 리소스 투입 계획</h1>
+      <p style="font-size:11px;color:var(--t3);margin-top:2px">투입현황(주간보고)과 별개로 운영됩니다. 셀 클릭으로 수시 편집 가능합니다.</p>
+    </div>
+    <button class="btn btn-g btn-sm" onclick="exportPlanToExcel()">⬇️ Excel 내보내기</button>
+  </div>
+
+  <div class="card" style="padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <span style="font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap;margin-right:2px">빠른 기간</span>
+      ${presetBtns}
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div><label class="lbl">📅 시작 월</label>
+        <input type="month" class="inp" style="width:148px" value="${S.planMonthStart}" onchange="S.planMonthStart=this.value;S.planEditCell=null;render()"/></div>
+      <div><label class="lbl">📅 종료 월</label>
+        <input type="month" class="inp" style="width:148px" value="${S.planMonthEnd}" onchange="S.planMonthEnd=this.value;S.planEditCell=null;render()"/></div>
+      <div><label class="lbl">📁 프로젝트 필터</label>
+        <select class="inp" style="min-width:200px" onchange="S.planProjFilter=this.value;render()">${projOpts}</select></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px">
+        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--success-lt);border:1px solid var(--success-bd);display:inline-block"></span>70~100%</span>
+        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--warning-lt);border:1px solid var(--warning-bd);display:inline-block"></span>&lt;70%</span>
+        <span style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--danger-lt);border:1px solid var(--danger-bd);display:inline-block"></span>&gt;100%</span>
+      </div>
+    </div>
+  </div>
+
+  ${editPanel}
+  ${projCards?`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${projCards}</div>`:""}
+
+  <div class="card" style="overflow:auto">
+    <table class="tbl" id="plan-tbl" style="min-width:max-content;width:100%;border-collapse:collapse">
+      <thead>
+        <tr>
+          <th rowspan="2" style="position:sticky;left:0;z-index:5;background:var(--bg-sub2);padding:7px 10px;white-space:nowrap;min-width:68px;border-right:2px solid var(--bd-md)">이름</th>
+          <th rowspan="2" style="position:sticky;left:68px;z-index:5;background:var(--bg-sub2);padding:7px 8px;white-space:nowrap;min-width:52px;border-right:1px solid var(--bd)">등급</th>
+          <th rowspan="2" style="position:sticky;left:120px;z-index:5;background:var(--bg-sub2);padding:7px 8px;white-space:nowrap;min-width:70px;border-right:2px solid var(--bd-md)">팀</th>
+          ${thMonth}
+        </tr>
+        <tr>${thWeek}</tr>
+        <tr style="background:var(--primary-lt)">
+          <td colspan="3" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--primary);position:sticky;left:0;background:var(--primary-lt);z-index:2;border-right:2px solid var(--bd-md)">평균 가용율</td>
+          ${summaryRow}
+        </tr>
+      </thead>
+      <tbody>${memberRows}${emptyMsg}</tbody>
+    </table>
+  </div>
+  <p style="font-size:11px;color:var(--t4);margin-top:8px">
+    💡 셀 클릭으로 투입률 입력 · 투입이 없는 멤버는 자동 숨김 · 브라우저 로컬에 저장 (투입현황과 별개)
+  </p>`;
+}
+
+/* ── Excel 내보내기 ── */
+function exportPlanToExcel(){
+  if(!S.planMonthStart||!S.planMonthEnd)return alert("기간을 먼저 설정해주세요.");
+  const months=monthRange(S.planMonthStart,S.planMonthEnd);
+  if(!months.length)return;
+  const cols=[];
+  months.forEach(ym=>{
+    const[,m]=ym.split("-");
+    getWeeksInMonth(ym).forEach(w=>{cols.push({mLabel:m+"월",wLabel:w.label,wStart:w.start,wEnd:w.end});});
+  });
+  const planMap=buildPlanMap();
+  function getPlanRate(mid,ws){
+    const al=planMap[mid+"_"+ws]||[];
+    if(S.planProjFilter==="all")return al.reduce((s,a)=>s+Number(a.rate||0),0);
+    const a=al.find(x=>String(x.projectId)===String(S.planProjFilter));
+    return a?Number(a.rate||0):0;
+  }
+  const activeMembers=S.members.filter(m=>cols.some(c=>getPlanRate(m.id,c.wStart)>0));
+  const projName=S.planProjFilter==="all"?"전체":gname(S.planProjFilter);
+  const h1=["이름","등급","팀",...cols.map(c=>c.mLabel)];
+  const h2=["","","",...cols.map(c=>c.wLabel+" ("+c.wStart+"~"+c.wEnd+")")];
+  const rows=activeMembers.map(m=>[m.name,m.rank,m.team,...cols.map(c=>{const r=getPlanRate(m.id,c.wStart);return r?r+"%":""})]);
+  const avgRow=["평균 가용율","",""];
+  cols.forEach(c=>{
+    const rates=S.members.map(m=>getPlanRate(m.id,c.wStart)).filter(r=>r>0);
+    avgRow.push(rates.length?Math.round(rates.reduce((s,r)=>s+r,0)/rates.length)+"%":"");
+  });
+  const all=[["DX Div. 리소스 투입 계획 — "+projName],["기간: "+S.planMonthStart+" ~ "+S.planMonthEnd],[],h1,h2,...rows,[],avgRow];
+  const csv="\uFEFF"+all.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const d=new Date();
+  const ymd=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  a.href=url;a.download=`${ymd}_DX_리소스계획.csv`;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1000);
+}
 /* ═══════════════════════════════════════
    INIT
 ═══════════════════════════════════════ */
