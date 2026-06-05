@@ -81,7 +81,7 @@ nav{background:var(--bg-sub);border-bottom:1px solid var(--bd);position:sticky;t
 #plan-tbl td,#plan-tbl th{vertical-align:middle;}
 #plan-tbl tbody tr:hover > td:not([style*="sticky"]):not([style*="position"]){filter:brightness(0.97);}
 #plan-tbl tbody tr:hover > td[style*="sticky"],
-#plan-tbl tbody tr:hover > td[style*="position:sticky"]{background:var(--bg-sub2)!important;}
+#plan-tbl tbody tr:hover > td[style*="position:sticky"]{filter:brightness(0.97);}
 .plan-empty-cell:hover{background:var(--primary-lt)!important;}
 .plan-empty-cell:hover::after{content:"✎";font-size:11px;color:var(--primary);}
 #plan-scroll{scrollbar-width:thin;scrollbar-color:var(--bd-md) transparent;}
@@ -1305,10 +1305,11 @@ function renderPlan(){
       const allocs=(planMap[m.id+"_"+c.colKey]||[]).filter(a=>Number(a.rate)>0);
       const total=allocs.reduce((s,a)=>s+Number(a.rate),0);
       const isActive=S.planEditMember?.memberId===m.id;
-      const inRange=false; /* 멤버 단위 편집에서는 범위 하이라이트 불필요 */
+      const inRange=false;
 
-      const cellBorder=isActive?"outline:2px solid var(--primary);outline-offset:-2px":"";
-      const cellBg=isActive?"var(--primary-lt)":inRange?"rgba(37,99,235,0.05)":"";
+      /* 선택행: outline(가로라인) 제거 → 배경색만 */
+      const cellBorder="";
+      const cellBg=isActive?"var(--primary-lt)":"";
 
       /* ── 필터 모드: 단일 프로젝트 숫자 표시 ── */
       if(S.planProjFilter!=="all"){
@@ -1362,10 +1363,13 @@ function renderPlan(){
     const isEditing=S.planEditMember?.memberId===m.id;
     const nameCellColor=isEditing?"var(--primary)":"var(--t1)";
     const editIcon=isEditing?' <span style="font-size:10px">✎</span>':"";
-    return`<tr>
-      <td onclick="openMemberEdit(${m.id})" style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd);cursor:pointer;color:${nameCellColor}">${esc(m.name)}${editIcon}</td>
-      <td style="padding:6px 8px;font-size:11px;color:var(--t2);white-space:nowrap;position:sticky;left:70px;z-index:3;background:var(--bg-card);border-right:1px solid var(--bd)">${esc(m.rank)}</td>
-      <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:120px;z-index:3;background:var(--bg-card);border-right:2px solid var(--bd-md)">${esc(m.team)}</td>
+    /* 선택된 행: 세로 파란 라인(border-left)만, 가로 라인 없음 */
+    const stickyBg=isEditing?"var(--primary-lt)":"var(--bg-card)";
+    const rowBorderLeft=isEditing?"border-left:3px solid var(--primary)":"border-left:3px solid transparent";
+    return`<tr style="${isEditing?"background:var(--primary-lt)":""}">
+      <td onclick="openMemberEdit(${m.id})" style="padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;position:sticky;left:0;z-index:3;background:${stickyBg};${rowBorderLeft};cursor:pointer;color:${nameCellColor}">${esc(m.name)}${editIcon}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--t2);white-space:nowrap;position:sticky;left:73px;z-index:3;background:${stickyBg};border-right:1px solid var(--bd)">${esc(m.rank)}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--t3);white-space:nowrap;position:sticky;left:123px;z-index:3;background:${stickyBg};border-right:2px solid var(--bd-md)">${esc(m.team)}</td>
       ${cells}
     </tr>`;
   }).join("");
