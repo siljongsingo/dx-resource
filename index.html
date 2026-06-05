@@ -210,7 +210,7 @@ function gasCall(params){
   return new Promise(resolve=>{
     const cb="gcb_"+Date.now()+"_"+Math.random().toString(36).slice(2);
     const s=document.createElement("script");
-    const timer=setTimeout(()=>{delete window[cb];s.remove();resolve({ok:false,error:"timeout"});},12000);
+    const timer=setTimeout(()=>{delete window[cb];s.remove();resolve({ok:false,error:"timeout"});},15000);
     window[cb]=data=>{clearTimeout(timer);delete window[cb];s.remove();resolve(data);};
     const q=Object.entries({...params,callback:cb}).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(typeof v==="object"?JSON.stringify(v):v)).join("&");
     s.src=GAS+"?"+q;
@@ -218,31 +218,34 @@ function gasCall(params){
     document.head.appendChild(s);
   });
 }
+
 const gasGet=action=>gasCall({action});
 
-/* gasPost: savePlan/saveConfig는 fetch POST, saveResource는 기존 JSONP */
-const gasPost=payload=>{
+/* gasPost: 모든 쓰기를 JSONP(GET)으로 처리
+   savePlan은 데이터가 크면 청크로 나눠 순차 전송 */
+const gasPost=async payload=>{
   const{action,...rest}=payload;
 
-  /* 읽기/소규모는 기존 JSONP */
   if(action==="saveResource") return gasCall({action,resource:JSON.stringify(rest.data)});
+  if(action==="saveConfig")   return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
 
-  /* savePlan, saveConfig → fetch POST (대용량 지원) */
-  return fetch(GAS,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({action,...rest}),
-    mode:"no-cors"   /* GAS는 CORS 헤더 없이 응답 → no-cors로 요청 */
-  })
-  .then(()=>({ok:true}))
-  .catch(err=>{
-    /* no-cors 성공도 opaque response로 와서 실제론 ok:true와 동일 처리 */
-    console.warn("gasPost fetch err:",err);
-    /* fallback: JSONP로 재시도 */
-    if(action==="savePlan") return gasCall({action,data:JSON.stringify(rest.data)});
-    if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
-    return{ok:false};
-  });
+  if(action==="savePlan"){
+    const json=JSON.stringify(rest.data||[]);
+    /* 20KB 이하: 단일 전송 */
+    if(json.length<=20000) return gasCall({action,data:json});
+    /* 20KB 초과: 청크 분할 전송 */
+    const CHUNK=18000;
+    const total=Math.ceil(json.length/CHUNK);
+    for(let i=0;i<total;i++){
+      const chunk=json.slice(i*CHUNK,(i+1)*CHUNK);
+      const r=await gasCall({action:"savePlanChunk",chunk,idx:i,total,size:json.length});
+      if(!r.ok) return {ok:false,error:"chunk "+i+" failed"};
+    }
+    /* 청크 완료 → 조합 명령 */
+    return gasCall({action:"commitPlanChunks",total,size:json.length});
+  }
+
+  return{ok:false,error:"unknown action"};
 };
 
 async function loadData(){
