@@ -847,8 +847,32 @@ function cancelPEdit(){S.pEdit=null;S.pForm={type:"상용",code:"",name:""};rend
 function toggleProjectHidden(id){
   S.projects=S.projects.map(p=>p.id===id?{...p,hidden:!p.hidden}:p);
   LS.set("dx-p",S.projects);
-  /* GAS 동기화 */
-  gasPost({action:"saveConfig",key:"projects",data:S.projects}).catch(()=>{});
+  /* GAS 동기화 — 청크 방식 */
+let _planSyncTimer=null;
+function syncPlanToGAS(){
+  clearTimeout(_planSyncTimer);
+  _planSyncTimer=setTimeout(async()=>{
+    const json=JSON.stringify(S.planData);
+    S.syncMsg="⏳ 구글시트 저장 중...";render();
+    try{
+      const CHUNK=3000;
+      const total=Math.ceil(json.length/CHUNK);
+      for(let i=0;i<total;i++){
+        const chunk=json.slice(i*CHUNK,(i+1)*CHUNK);
+        const r=await gasCall({action:"savePlanChunk",idx:i,total,chunk});
+        if(!r.ok) throw new Error("chunk "+i+" failed");
+        await new Promise(res=>setTimeout(res,200));
+      }
+      const commit=await gasCall({action:"commitPlanChunks",total,size:json.length});
+      if(!commit.ok) throw new Error("commit failed");
+      S.syncMsg="✅ 저장 완료 ("+S.planData.length+"건)";S.connected=true;
+    }catch(e){
+      S.syncMsg="⚠️ 저장 실패 (로컬 유지)";
+    }
+    render();
+    setTimeout(()=>{S.syncMsg="";render();},3000);
+  },800);
+}).catch(()=>{});
   render();
 }
 
@@ -870,9 +894,16 @@ async function doSync(){
   S.syncing=true;S.syncMsg="";render();
   try{
     await loadData();
-    /* 로컬 planData가 있으면 GAS에도 업로드 (다른 기기에서 없는 경우 복원) */
     if(S.planData&&S.planData.length>0){
-      await gasPost({action:"savePlan",data:S.planData});
+      const json=JSON.stringify(S.planData);
+      const CHUNK=3000;
+      const total=Math.ceil(json.length/CHUNK);
+      for(let i=0;i<total;i++){
+        const chunk=json.slice(i*CHUNK,(i+1)*CHUNK);
+        await gasCall({action:"savePlanChunk",idx:i,total,chunk});
+        await new Promise(r=>setTimeout(r,200));
+      }
+      await gasCall({action:"commitPlanChunks",total,size:json.length});
     }
     S.syncMsg="✅ 동기화 완료";
   }catch(e){S.syncMsg="⚠️ 동기화 실패";}
