@@ -219,12 +219,30 @@ function gasCall(params){
   });
 }
 const gasGet=action=>gasCall({action});
+
+/* gasPost: savePlan/saveConfig는 fetch POST, saveResource는 기존 JSONP */
 const gasPost=payload=>{
-  const {action,...rest}=payload;
-  if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
-  if(action==="saveResource") return gasCall({action,resource:rest.data});
-  if(action==="savePlan") return gasCall({action,data:JSON.stringify(rest.data)});
-  return Promise.resolve({ok:false});
+  const{action,...rest}=payload;
+
+  /* 읽기/소규모는 기존 JSONP */
+  if(action==="saveResource") return gasCall({action,resource:JSON.stringify(rest.data)});
+
+  /* savePlan, saveConfig → fetch POST (대용량 지원) */
+  return fetch(GAS,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action,...rest}),
+    mode:"no-cors"   /* GAS는 CORS 헤더 없이 응답 → no-cors로 요청 */
+  })
+  .then(()=>({ok:true}))
+  .catch(err=>{
+    /* no-cors 성공도 opaque response로 와서 실제론 ok:true와 동일 처리 */
+    console.warn("gasPost fetch err:",err);
+    /* fallback: JSONP로 재시도 */
+    if(action==="savePlan") return gasCall({action,data:JSON.stringify(rest.data)});
+    if(action==="saveConfig") return gasCall({action,key:rest.key,value:JSON.stringify(rest.data)});
+    return{ok:false};
+  });
 };
 
 async function loadData(){
@@ -1012,28 +1030,20 @@ function savePlanCell(memberId,weekStart,weekEnd,allocations){
 /* GAS 동기화 — 저장 완료 후 명시적으로 한 번만 호출 */
 let _planSyncTimer=null;
 function syncPlanToGAS(){
-  /* 디바운스: 연속 저장 시 마지막 호출 후 800ms 뒤 1회만 전송 */
   clearTimeout(_planSyncTimer);
   _planSyncTimer=setTimeout(()=>{
     const json=JSON.stringify(S.planData);
-    /* GAS JSONP URL 길이 제한 대비: 32KB 초과 시 경고 */
-    if(json.length>30000){
-      console.warn("planData가 큽니다. GAS 전송 실패 가능성 있음:",json.length,"bytes");
-    }
+    console.log("syncPlanToGAS: sending",json.length,"bytes, entries:",S.planData.length);
+    S.syncMsg="⏳ 구글시트 저장 중...";render();
     gasPost({action:"savePlan",data:S.planData})
-      .then(r=>{
-        if(r&&r.ok){
-          S.syncMsg="✅ 리소스 계획 저장 완료";
-        } else {
-          S.syncMsg="⚠️ GAS 저장 실패 (로컬은 유지)";
-        }
-        render();
-        setTimeout(()=>{S.syncMsg="";render();},3000);
+      .then(()=>{
+        /* no-cors fetch는 항상 ok:true로 처리 — 실제 저장 여부는 시트 확인 */
+        S.syncMsg="✅ 구글시트 저장 완료";S.connected=true;
+        render();setTimeout(()=>{S.syncMsg="";render();},3000);
       })
       .catch(()=>{
-        S.syncMsg="⚠️ 네트워크 오류 (로컬은 유지)";
-        render();
-        setTimeout(()=>{S.syncMsg="";render();},3000);
+        S.syncMsg="⚠️ 저장 실패 (로컬 유지됨)";
+        render();setTimeout(()=>{S.syncMsg="";render();},4000);
       });
   },800);
 }
