@@ -165,22 +165,27 @@ const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"
 
 /* 프로젝트 고유 색상 팔레트 — 전역 (renderPlan, renderMemberEditPanel 공유) */
 const PROJ_COLORS=[
-  "#1D4ED8",/* id1  파랑       */
-  "#B91C1C",/* id2  빨강       */
-  "#15803D",/* id3  초록       */
-  "#EA580C",/* id4  주황       */
-  "#7E22CE",/* id5  보라       */
-  "#0E7490",/* id6  청록       */
-  "#BE185D",/* id7  핫핑크     */
-  "#4D7C0F",/* id8  황록(라임) */
-  "#92400E",/* id9  갈색       */
-  "#0F172A",/* id10 다크네이비  */
-  "#065F46",/* id11 다크틸     */
-  "#1E1B4B",/* id12 다크인디고 */
+  "#1D4ED8",/* 0  파랑       */
+  "#B91C1C",/* 1  빨강       */
+  "#15803D",/* 2  초록       */
+  "#EA580C",/* 3  주황       */
+  "#7E22CE",/* 4  보라       */
+  "#0E7490",/* 5  청록       */
+  "#BE185D",/* 6  핫핑크     */
+  "#4D7C0F",/* 7  황록(라임) */
+  "#92400E",/* 8  갈색       */
+  "#1E40AF",/* 9  인디고블루 */
+  "#065F46",/* 10 다크틸     */
+  "#831843",/* 11 다크로즈   */
+  "#78350F",/* 12 다크앰버   */
+  "#1E3A5F",/* 13 다크네이비 */
+  "#3D0066",/* 14 다크퍼플   */
+  "#005F73",/* 15 딥틸       */
 ];
 function projColor(pid){
-  const idx=S.projects.findIndex(p=>p.id===Number(pid));
-  return PROJ_COLORS[((idx%PROJ_COLORS.length)+PROJ_COLORS.length)%PROJ_COLORS.length];
+  /* pid(project id) 자체를 index로 사용 → 동일 프로젝트는 항상 같은 색 */
+  const n=Number(pid)||0;
+  return PROJ_COLORS[((n-1)%PROJ_COLORS.length+PROJ_COLORS.length)%PROJ_COLORS.length];
 }
 
 /* MM 계산 헬퍼 — 전역 */
@@ -1334,6 +1339,8 @@ function renderPlan(){
       const totalColor=total>100?"#DC2626":total===100?"#16A34A":"#D97706";
       const totalBg=total>100?"#FFF0F0":total===100?"#F0FDF4":"#FFFBEB";
       const totalMM_cell=allocs.reduce((s,a)=>s+toMM(a.rate),0);
+      /* 프로젝트 수에 따라 막대 높이 자동 조정 */
+      const barH=allocs.length<=2?10:allocs.length<=3?9:8;
 
       const barRows=allocs.map(a=>{
         const r=Number(a.rate);
@@ -1342,7 +1349,7 @@ function renderPlan(){
         const mmVal=toMM(r);
         const tip=`${gname(a.projectId)}: ${r}% · ${fmtMM(mmVal)}`;
         return`<div title="${esc(tip)}" style="display:flex;align-items:center;gap:3px;margin-bottom:2px">
-          <div style="flex:1;height:10px;border-radius:2px;overflow:hidden;background:rgba(0,0,0,0.07)">
+          <div style="flex:1;height:${barH}px;border-radius:2px;overflow:hidden;background:rgba(0,0,0,0.07)">
             <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;min-width:3px"></div>
           </div>
           <span style="font-size:9px;font-weight:700;color:${color};min-width:28px;text-align:right">${r}%</span>
@@ -1612,8 +1619,8 @@ function printPlanPDF(){
     getWeeksInMonth(ym).forEach(w=>{cols.push({monthLabel:m+"월",weekLabel:w.label,weekStart:w.start,weekEnd:w.end,colKey:w.start});});
   });
   const planMap=buildPlanMap();
-  const PROJ_COLORS_PDF=PROJ_COLORS;
-  const pc=pid=>{const idx=S.projects.findIndex(p=>p.id===Number(pid));return PROJ_COLORS_PDF[((idx%12)+12)%12];};
+  const PROJ_COLORS_PDF=["#1D4ED8","#B91C1C","#15803D","#EA580C","#7E22CE","#0E7490","#BE185D","#4D7C0F","#92400E","#1E40AF","#065F46","#831843","#78350F","#1E3A5F","#3D0066","#005F73"];
+  const pc=pid=>{const n=Number(pid)||0;return PROJ_COLORS_PDF[((n-1)%16+16)%16];};
 
   /* month colspan */
   const mSpan={};cols.forEach(c=>{mSpan[c.monthLabel]=(mSpan[c.monthLabel]||0)+1;});
