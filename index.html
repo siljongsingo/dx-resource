@@ -265,7 +265,8 @@ async function loadData(){
       S.resources=res.data;
       LS.set("dx-r",res.data);
     }
-    if(plan.ok&&plan.data){
+    if(plan.ok&&plan.data&&plan.data.length){
+      /* GAS 데이터가 로컬보다 최신이면 덮어씀 */
       S.planData=plan.data;
       LS.set("dx-plan",plan.data);
     }
@@ -690,7 +691,26 @@ function bindEvents(){
 /* ═══════════════════════════════════════
    ACTIONS
 ═══════════════════════════════════════ */
-function setPage(p){S.page=p;S.menuOpen=false;render();}
+function setPage(p){
+  S.page=p;S.menuOpen=false;
+  S.planEditMember=null;S.planEditCell=null;
+  render();
+  /* 리소스 계획 탭 진입 시 GAS에서 최신 데이터 자동 로드 */
+  if(p==="plan"){
+    S.syncMsg="⏳ 데이터 불러오는 중...";render();
+    gasGet("getPlan").then(r=>{
+      if(r.ok&&r.data&&r.data.length){
+        S.planData=r.data;
+        LS.set("dx-plan",r.data);
+        S.syncMsg="✅ 최신 데이터 로드 완료 ("+r.data.length+"건)";
+      } else {
+        S.syncMsg="";
+      }
+      render();
+      setTimeout(()=>{S.syncMsg="";render();},3000);
+    }).catch(()=>{S.syncMsg="";render();});
+  }
+}
 function setTab(t){S.tab=t;render();}
 function toggleTheme(){S.dark=!S.dark;render();}
 function toggleMenu(){S.menuOpen=!S.menuOpen;render();}
