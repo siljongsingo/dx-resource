@@ -847,32 +847,8 @@ function cancelPEdit(){S.pEdit=null;S.pForm={type:"상용",code:"",name:""};rend
 function toggleProjectHidden(id){
   S.projects=S.projects.map(p=>p.id===id?{...p,hidden:!p.hidden}:p);
   LS.set("dx-p",S.projects);
-  /* GAS 동기화 — 청크 방식 */
-let _planSyncTimer=null;
-function syncPlanToGAS(){
-  clearTimeout(_planSyncTimer);
-  _planSyncTimer=setTimeout(async()=>{
-    const json=JSON.stringify(S.planData);
-    S.syncMsg="⏳ 구글시트 저장 중...";render();
-    try{
-      const CHUNK=3000;
-      const total=Math.ceil(json.length/CHUNK);
-      for(let i=0;i<total;i++){
-        const chunk=json.slice(i*CHUNK,(i+1)*CHUNK);
-        const r=await gasCall({action:"savePlanChunk",idx:i,total,chunk});
-        if(!r.ok) throw new Error("chunk "+i+" failed");
-        await new Promise(res=>setTimeout(res,200));
-      }
-      const commit=await gasCall({action:"commitPlanChunks",total,size:json.length});
-      if(!commit.ok) throw new Error("commit failed");
-      S.syncMsg="✅ 저장 완료 ("+S.planData.length+"건)";S.connected=true;
-    }catch(e){
-      S.syncMsg="⚠️ 저장 실패 (로컬 유지)";
-    }
-    render();
-    setTimeout(()=>{S.syncMsg="";render();},3000);
-  },800);
-}).catch(()=>{});
+  /* GAS 동기화 */
+  gasPost({action:"saveConfig",key:"projects",data:S.projects}).catch(()=>{});
   render();
 }
 
@@ -894,6 +870,7 @@ async function doSync(){
   S.syncing=true;S.syncMsg="";render();
   try{
     await loadData();
+    /* 로컬 planData → 구글시트에 청크 업로드 */
     if(S.planData&&S.planData.length>0){
       const json=JSON.stringify(S.planData);
       const CHUNK=3000;
@@ -1085,20 +1062,29 @@ function savePlanCell(memberId,weekStart,weekEnd,allocations){
 let _planSyncTimer=null;
 function syncPlanToGAS(){
   clearTimeout(_planSyncTimer);
-  _planSyncTimer=setTimeout(()=>{
+  _planSyncTimer=setTimeout(async()=>{
     const json=JSON.stringify(S.planData);
-    console.log("syncPlanToGAS: sending",json.length,"bytes, entries:",S.planData.length);
     S.syncMsg="⏳ 구글시트 저장 중...";render();
-    gasPost({action:"savePlan",data:S.planData})
-      .then(()=>{
-        /* no-cors fetch는 항상 ok:true로 처리 — 실제 저장 여부는 시트 확인 */
-        S.syncMsg="✅ 구글시트 저장 완료";S.connected=true;
-        render();setTimeout(()=>{S.syncMsg="";render();},3000);
-      })
-      .catch(()=>{
-        S.syncMsg="⚠️ 저장 실패 (로컬 유지됨)";
-        render();setTimeout(()=>{S.syncMsg="";render();},4000);
-      });
+    try{
+      const CHUNK=3000;
+      const total=Math.ceil(json.length/CHUNK);
+      /* 청크 전송 */
+      for(let i=0;i<total;i++){
+        const chunk=json.slice(i*CHUNK,(i+1)*CHUNK);
+        const r=await gasCall({action:"savePlanChunk",idx:i,total,chunk});
+        if(!r.ok){throw new Error("chunk "+i+" failed: "+(r.error||""));}
+        await new Promise(res=>setTimeout(res,200));
+      }
+      /* 조합 요청 */
+      const commit=await gasCall({action:"commitPlanChunks",total,size:json.length});
+      if(!commit.ok) throw new Error("commit failed");
+      S.syncMsg="✅ 저장 완료 ("+S.planData.length+"건)";S.connected=true;
+    }catch(e){
+      console.warn("syncPlanToGAS err:",e.message);
+      S.syncMsg="⚠️ 저장 실패 (로컬 유지)";
+    }
+    render();
+    setTimeout(()=>{S.syncMsg="";render();},3000);
   },800);
 }
 
